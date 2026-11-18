@@ -1,0 +1,6 @@
+{
+  "name": "Chrome Extension MV3 Studio",
+  "description": "Universal live-preview workbench and Chrome API simulator for developing and debugging Manifest V3 Chrome extensions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MV3 Demo Helper - Popup</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      width: 320px;
+      min-height: 460px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #0f172a;
+      background-color: #f8fafc;
+    }
+
+    .header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      margin-bottom: 14px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .version {
+      font-size: 12px;
+      color: #64748b;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .section {
+      margin-bottom: 14px;
+    }
+
+    .label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+
+    .tab-info {
+      padding: 8px 10px;
+      border-radius: 6px;
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px;
+      color: #334155;
+      word-break: break-all;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      height: 34px;
+      padding: 0 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background-color: #ffffff;
+      color: #0f172a;
+      font-size: 13px;
+    }
+
+    input[type="text"]:focus {
+      outline: 2px solid #2563eb;
+      outline-offset: -1px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    button {
+      flex: 1;
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background-color: #ffffff;
+      color: #0f172a;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      background-color: #f1f5f9;
+    }
+
+    button.primary {
+      background-color: #2563eb;
+      border-color: #2563eb;
+      color: #ffffff;
+    }
+
+    button.primary:hover {
+      background-color: #1d4ed8;
+    }
+
+    .divider {
+      border: 0;
+      border-top: 1px solid #e2e8f0;
+      margin: 14px 0;
+    }
+
+    .status-box {
+      padding: 10px;
+      border-radius: 6px;
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      font-size: 12px;
+      color: #334155;
+      min-height: 54px;
+    }
+
+    .status-box code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      color: #1e293b;
+    }
+
+    .footer-actions {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 id="ext-name" class="title">MV3 Demo Helper</h1>
+    <span id="ext-version" class="version">v1.0.0</span>
+  </div>
+
+  <div class="section">
+    <span class="label">Tab Aktif (chrome.tabs.query)</span>
+    <div id="active-tab-url" class="tab-info">Memeriksa tab aktif...</div>
+  </div>
+
+  <div class="section">
+    <label for="note-input" class="label">Catatan Ekstensi (chrome.storage.local)</label>
+    <input id="note-input" type="text" placeholder="Tulis catatan atau label item..." />
+    <div class="row">
+      <button id="save-note-btn" type="button" class="primary">Simpan Storage</button>
+      <button id="read-note-btn" type="button">Baca Ulang</button>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="section">
+    <span class="label">Uji Kirim Pesan (chrome.tabs.sendMessage)</span>
+    <div class="row">
+      <button id="send-ping-btn" type="button">Kirim Pesan Tes</button>
+      <button id="send-autofill-btn" type="button" class="primary">Isi Tabel Target</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <span class="label">Hasil &amp; Sinkronisasi Real-Time</span>
+    <div id="status-box" class="status-box">Siap menguji Chrome API MV3.</div>
+  </div>
+
+  <div class="footer-actions">
+    <button id="open-options-btn" type="button">Buka Halaman Options</button>
+  </div>
+
+  <script>
+    (function () {
+      const extNameEl = document.getElementById('ext-name');
+      const extVersionEl = document.getElementById('ext-version');
+      const activeTabEl = document.getElementById('active-tab-url');
+      const noteInput = document.getElementById('note-input');
+      const statusBox = document.getElementById('status-box');
+
+      const manifest = chrome.runtime.getManifest();
+      extNameEl.textContent = manifest.name || 'MV3 Demo Helper';
+      extVersionEl.textContent = 'v' + (manifest.version || '1.0.0');
+
+      let activeTabId = 1;
+
+      function setStatus(html) {
+        statusBox.innerHTML = html;
+      }
+
+      // 1. Query active tab
+      chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        if (tabs && tabs.length > 0) {
+          activeTabId = tabs[0].id;
+          activeTabEl.textContent = '#' + tabs[0].id + ' · ' + tabs[0].url;
+        }
+      });
+
+      // 2. Load initial storage value
+      function loadStoredNote() {
+        chrome.storage.local.get({ demoNote: 'Entri dari Popup', defaultCategory: 'Ekstensi MV3' }, function (data) {
+          noteInput.value = data.demoNote || '';
+          setStatus('Storage dimuat: <code>' + (data.demoNote || '(kosong)') + '</code>');
+        });
+      }
+
+      loadStoredNote();
+
+      // 3. Listen for cross-iframe storage changes (e.g. from options.html)
+      chrome.storage.onChanged.addListener(function (changes, area) {
+        if (area === 'local' && changes.demoNote) {
+          noteInput.value = changes.demoNote.newValue || '';
+          setStatus('Sinkronisasi <code>onChanged</code> diterima dari halaman lain.');
+        }
+      });
+
+      document.getElementById('save-note-btn').addEventListener('click', function () {
+        const val = noteInput.value.trim();
+        chrome.storage.local.set({ demoNote: val, updatedAt: new Date().toLocaleTimeString() }, function () {
+          setStatus('Tersimpan ke <code>chrome.storage.local</code>.');
+        });
+      });
+
+      document.getElementById('read-note-btn').addEventListener('click', loadStoredNote);
+
+      // 4. Test chrome.tabs.sendMessage
+      document.getElementById('send-ping-btn').addEventListener('click', function () {
+        const payload = {
+          action: 'PING_TARGET',
+          note: noteInput.value.trim() || 'Halo dari Popup',
+          sentAt: new Date().toISOString()
+        };
+        chrome.tabs.sendMessage(activeTabId, payload, function (response) {
+          setStatus('Respons target: <code>' + JSON.stringify(response) + '</code>');
+        });
+      });
+
+      document.getElementById('send-autofill-btn').addEventListener('click', function () {
+        chrome.storage.local.get({ defaultCategory: 'Ekstensi MV3' }, function (cfg) {
+          const itemTitle = noteInput.value.trim() || 'Item Otomatis Popup';
+          chrome.tabs.sendMessage(
+            activeTabId,
+            {
+              action: 'AUTOFILL_SAMPLE',
+              data: {
+                nama: itemTitle,
+                kategori: cfg.defaultCategory,
+                status: 'Terisi'
+              }
+            },
+            function (response) {
+              setStatus('Baris baru dikirim ke tabel target (ID: ' + (response && response.insertedRowId) + ').');
+            }
+          );
+        });
+      });
+
+      // 5. Test chrome.tabs.create + chrome.runtime.getURL
+      document.getElementById('open-options-btn').addEventListener('click', function () {
+        const optionsUrl = chrome.runtime.getURL('options.html');
+        chrome.tabs.create({ url: optionsUrl });
+      });
+    })();
+  </script>
+</body>
+</html>
