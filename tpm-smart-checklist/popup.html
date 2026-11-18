@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Smart Checklist Runner</title>
+  <title>TPM Smart Checklist</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body class="is-popup">
@@ -12,8 +12,8 @@
       <div class="brand-row">
         <span class="brand-mark" data-icon="clipboard-check" data-size="16"></span>
         <div class="brand-text-wrap">
-          <h1 class="popup-title">Smart Checklist Runner</h1>
-          <span id="popup-version" class="version-pill">v1.0.0</span>
+          <h1 class="popup-title">TPM Smart Checklist</h1>
+          <span id="popup-version" class="version-pill">v1.2.0</span>
         </div>
       </div>
 
@@ -35,25 +35,45 @@
       </div>
     </header>
 
-    <div class="preset-card">
-      <span id="preset-label" class="preset-label">Preset: Operator 1</span>
-      <div class="preset-counts">
-        <span id="running-count-chip" class="count-chip is-running">30 Running</span>
-        <span id="standby-count-chip" class="count-chip is-standby">0 Standby</span>
+    <section class="operator-card" aria-label="Pilih Operator">
+      <div class="operator-seg" role="tablist" aria-label="Preset Operator">
+        <button type="button" role="tab" class="op-seg-btn is-active" data-operator="op1">Operator 1</button>
+        <button type="button" role="tab" class="op-seg-btn" data-operator="op2">Operator 2</button>
+        <button type="button" role="tab" class="op-seg-btn" data-operator="op3">Operator 3</button>
       </div>
-    </div>
+
+      <div class="preset-meta-row">
+        <span id="preset-area-label" class="preset-area">LAPANGAN 1 (GROUND)</span>
+        <div class="preset-counts">
+          <span id="running-count-chip" class="count-chip is-running">30 Running</span>
+          <span id="standby-count-chip" class="count-chip is-standby">0 Standby</span>
+        </div>
+      </div>
+    </section>
 
     <div class="field-group">
-      <label for="schedule-filter" class="field-label">Filter Jadwal / Shift</label>
+      <label for="schedule-filter" class="field-label">Filter Jadwal / Shift (DILOC)</label>
       <select id="schedule-filter" class="control-select">
         <option value="all">Semua Jadwal</option>
-        <option value="pagi">Pagi</option>
-        <option value="sore">Sore</option>
-        <option value="malam">Malam</option>
-        <option value="daily">Daily</option>
+        <option value="morning_shift">Morning Shift</option>
+        <option value="afternoon_shift">Afternoon Shift</option>
+        <option value="night_shift">Night Shift</option>
+        <option value="every_shift">Every Shift</option>
         <option value="weekly">Weekly</option>
-        <option value="monthly">Monthly</option>
+        <option value="optional">Optional</option>
       </select>
+      <label class="checkbox-row" for="auto-detect-shift">
+        <input id="auto-detect-shift" type="checkbox" checked />
+        <span>Auto-detect shift sesuai jam</span>
+      </label>
+      <label class="checkbox-row" for="include-every-shift">
+        <input id="include-every-shift" type="checkbox" checked />
+        <span>Sertakan task Every Shift</span>
+      </label>
+      <label class="checkbox-row" for="auto-show-all-rows">
+        <input id="auto-show-all-rows" type="checkbox" checked />
+        <span>Auto-tampilkan semua baris (300+)</span>
+      </label>
     </div>
 
     <div class="action-grid">
@@ -92,8 +112,6 @@
     <footer class="app-footer">© 2026 — Developed by FIKRI</footer>
   </div>
 
-  <script src="./icons.js"></script>
-  <script src="./storage.js"></script>
-  <script src="./popup.js"></script>
+  <script type="module" src="./popup.js"></script>
 </body>
 </html>

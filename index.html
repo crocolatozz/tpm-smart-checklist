@@ -359,7 +359,7 @@
     .popup-iframe {
       width: 340px;
       min-height: 460px;
-      height: 490px;
+      height: 535px;
       border: 0;
       display: block;
       background-color: #ffffff;
@@ -520,7 +520,7 @@
       color: #93c5fd;
     }
 
-    .badge-daily {
+    .badge-every {
       background-color: rgba(16, 185, 129, 0.16);
       color: #6ee7b7;
     }
@@ -530,7 +530,7 @@
       color: #d8b4fe;
     }
 
-    .badge-monthly {
+    .badge-optional {
       background-color: rgba(245, 158, 11, 0.18);
       color: #fcd34d;
     }
@@ -858,8 +858,8 @@
             id="folder-input"
             class="input-text"
             type="text"
-            value="smart-checklist-runner"
-            placeholder="smart-checklist-runner"
+            value="tpm-smart-checklist"
+            placeholder="tpm-smart-checklist"
             spellcheck="false"
             autocomplete="off"
           />
@@ -907,7 +907,7 @@
 
             <div class="chrome-popup-window">
               <div class="chrome-window-bar">
-                <span id="popup-win-title" class="chrome-window-title">Smart Checklist Runner</span>
+                <span id="popup-win-title" class="chrome-window-title">TPM Smart Checklist</span>
                 <span id="popup-win-path" class="chrome-window-path">popup.html</span>
               </div>
               <iframe
@@ -934,10 +934,16 @@
             <div id="target-section" class="target-section">
               <div class="section-top">
                 <div class="section-heading-group">
-                  <h2 class="section-heading">Simulasi Tabel Vue.js Target (Operator 1)</h2>
-                  <span class="section-sub">https://checklist.internal.local/operator-1</span>
+                  <h2 class="section-heading">Simulasi Tabel Vue.js Target (DILOC Operator 1–3)</h2>
+                  <span class="section-sub">https://checklist.internal.local/diloc</span>
                 </div>
                 <div style="display:flex; gap:8px; align-items:center;">
+                  <label for="mock-entries-select" style="font-size:12px; color:var(--text-secondary);">Tampilkan</label>
+                  <select id="mock-entries-select" name="diloc_table_length" class="target-input" style="width:auto; height:30px; padding:0 8px; font-size:12px;">
+                    <option value="10" selected>10</option>
+                    <option value="50">50</option>
+                    <option value="300">300</option>
+                  </select>
                   <button id="target-reset-btn" type="button" class="btn btn-sm">Reset Tabel</button>
                 </div>
               </div>
@@ -1003,7 +1009,7 @@
         <div class="options-stage">
           <div class="options-bar">
             <span>
-              Pratinjau Penuh: <code id="options-path-label">./sample-ext/options.html</code>
+              Pratinjau Penuh: <code id="options-path-label">./tpm-smart-checklist/options.html</code>
             </span>
             <button id="back-to-popup-btn" type="button" class="btn btn-sm">
               Kembali ke Popup + Target Web
@@ -1039,8 +1045,8 @@
         active: true,
         highlighted: true,
         status: 'complete',
-        title: 'TPM Smart Checklist - Operator 1',
-        url: 'https://checklist.internal.local/operator-1'
+        title: 'TPM Smart Checklist - DILOC',
+        url: 'https://checklist.internal.local/diloc'
       };
 
       const INITIAL_VUE_ROWS = [
@@ -1078,45 +1084,64 @@
           needMaintenance: true
         },
         {
-          taskId: '1540_daily',
-          tag: 'B-02-U-GA201B',
-          badges: [{ label: 'Daily', cls: 'badge-daily' }],
-          title: 'Check bearing temp',
-          subtitle: '• Ukur temperatur rumah bearing DE/NDE',
-          execId: 'is_executed_1540',
-          maintId: 'need_maintenance_1540',
-          executed: false,
-          needMaintenance: false
-        },
-        {
-          taskId: '1541_weekly',
+          taskId: '1540_weekly',
           tag: 'B-02-U-GA102A',
           badges: [{ label: 'Weekly', cls: 'badge-weekly' }],
           title: 'Periksa kebocoran mechanical seal',
           subtitle: '• Pastikan tidak ada rembesan fluida',
-          execId: 'is_executed_1541',
-          maintId: 'need_maintenance_1541',
+          execId: 'is_executed_1540',
+          maintId: 'need_maintenance_1540',
           executed: true,
           needMaintenance: false
         },
         {
-          taskId: '1542_afternoon_monthly',
-          tag: 'B-02-U-GA102B',
-          badges: [
-            { label: 'Afternoon Shift', cls: 'badge-shift' },
-            { label: 'Monthly', cls: 'badge-monthly' }
-          ],
-          title: 'Cleaning body motor & strainer',
-          subtitle: '• Bersihkan area sekitar unit',
-          execId: 'is_executed_1542',
-          maintId: 'need_maintenance_1542',
+          taskId: '2101_every_shift',
+          tag: 'B-02-U-GA204A',
+          badges: [{ label: 'Every Shift', cls: 'badge-every' }],
+          title: 'Check bearing temp',
+          subtitle: '• Ukur temperatur rumah bearing DE/NDE (Op 2)',
+          execId: 'is_executed_2101',
+          maintId: 'need_maintenance_2101',
+          executed: false,
+          needMaintenance: false
+        },
+        {
+          taskId: '2102_afternoon_shift',
+          tag: 'B-02-U-GA401B',
+          badges: [{ label: 'Afternoon Shift', cls: 'badge-shift' }],
+          title: 'Putar poros',
+          subtitle: '• Putar poros pompa secara manual saat standby (Op 2)',
+          execId: 'is_executed_2102',
+          maintId: 'need_maintenance_2102',
+          executed: false,
+          needMaintenance: false
+        },
+        {
+          taskId: '3201_every_shift',
+          tag: 'B-02-U-FD304',
+          badges: [{ label: 'Every Shift', cls: 'badge-every' }],
+          title: 'Inspect fan belt & vibration',
+          subtitle: '• Periksa tegangan belt dan suara abnormal (Op 3)',
+          execId: 'is_executed_3201',
+          maintId: 'need_maintenance_3201',
+          executed: false,
+          needMaintenance: false
+        },
+        {
+          taskId: '3202_optional',
+          tag: 'B-02-U-GA301A',
+          badges: [{ label: 'Optional', cls: 'badge-optional' }],
+          title: 'Kelainan suara',
+          subtitle: '• Pengecekan opsional kebisingan casing (Op 3)',
+          execId: 'is_executed_3202',
+          maintId: 'need_maintenance_3202',
           executed: false,
           needMaintenance: false
         }
       ];
 
       const state = {
-        folder: 'smart-checklist-runner',
+        folder: 'tpm-smart-checklist',
         activeView: 'popup',
         activeInspectorTab: 'console',
         manifest: null,
@@ -1153,6 +1178,7 @@
 
       const elTargetSection = document.getElementById('target-section');
       const elTargetTbody = document.getElementById('target-tbody');
+      const elMockEntriesSelect = document.getElementById('mock-entries-select');
       const elTargetResetBtn = document.getElementById('target-reset-btn');
 
       const elSubtabConsole = document.getElementById('subtab-console');
@@ -1170,7 +1196,7 @@
         return String(raw || '')
           .trim()
           .replace(/\\/g, '/')
-          .replace(/^\/+|\/+$/g, '') || 'sample-ext';
+          .replace(/^\/+|\/+$/g, '') || 'tpm-smart-checklist';
       }
 
       function getStorageKeyPrefix(folder) {
@@ -1281,7 +1307,13 @@
 
       // Mock Vue.js Table Rendering & Message Interaction
       function renderTargetTable() {
-        elTargetTbody.innerHTML = state.targetRows.map((row) => {
+        const limitVal = elMockEntriesSelect ? elMockEntriesSelect.value : '300';
+        const visibleRows =
+          limitVal === '10' ? state.targetRows.slice(0, 4) :
+          limitVal === '50' ? state.targetRows.slice(0, 6) :
+          state.targetRows;
+
+        elTargetTbody.innerHTML = visibleRows.map((row) => {
           const badgesHtml = row.badges
             .map((b) => '<span class="vue-badge ' + escapeHtml(b.cls) + '">' + escapeHtml(b.label) + '</span>')
             .join('');
@@ -1907,7 +1939,7 @@
       elResetStorageBtn.addEventListener('click', function () {
         const storageKey = getStorageKeyPrefix(state.folder);
         window.localStorage.removeItem(storageKey);
-        window.localStorage.removeItem('smart_checklist_runner_v1_state');
+        window.localStorage.removeItem('tpm_smart_checklist_v1_state');
         renderStorageInspector();
         addLog('storage', 'reset', 'Mock storage untuk "' + state.folder + '" dihapus dan pratinjau dimuat ulang.');
         loadExtension(state.folder);
@@ -1930,7 +1962,15 @@
         if (input.id === row.maintId) row.needMaintenance = input.checked;
       });
 
+      if (elMockEntriesSelect) {
+        elMockEntriesSelect.addEventListener('change', function () {
+          renderTargetTable();
+          addLog('tabs', 'table.length', 'Jumlah baris tabel diubah ke ' + elMockEntriesSelect.value);
+        });
+      }
+
       elTargetResetBtn.addEventListener('click', function () {
+        if (elMockEntriesSelect) elMockEntriesSelect.value = '10';
         state.targetRows = INITIAL_VUE_ROWS.map((row) => ({ ...row }));
         renderTargetTable();
       });

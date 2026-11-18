@@ -6,7 +6,7 @@
     "dev": "node server.js",
     "start": "node server.js",
     "build": "node -e \"console.log('Static site build complete')\"",
-    "lint": "node --check server.js && node --check smart-checklist-runner/icons.js && node --check smart-checklist-runner/storage.js && node --check smart-checklist-runner/content.js && node --check smart-checklist-runner/popup.js && node --check smart-checklist-runner/options.js"
+    "lint": "node --check server.js && node --check tpm-smart-checklist/equipment-db.js && node --check tpm-smart-checklist/icons.js && node --check tpm-smart-checklist/storage.js && node --check tpm-smart-checklist/content.js && node --check tpm-smart-checklist/popup.js && node --check tpm-smart-checklist/options.js"
   },
   "dependencies": {
     "express": "^5.3.0"

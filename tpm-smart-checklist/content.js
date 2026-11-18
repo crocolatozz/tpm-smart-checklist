@@ -6,15 +6,20 @@
   }
   window.__SCR_CONTENT_LOADED__ = true;
 
-  const SCHEDULE_MATCHERS = {
-    all: null,
-    pagi: /\b(morning|pagi)\b/i,
-    sore: /\b(afternoon|sore)\b/i,
-    malam: /\b(night|malam)\b/i,
-    daily: /\b(daily|harian)\b/i,
-    weekly: /\b(weekly|mingguan)\b/i,
-    monthly: /\b(monthly|bulanan)\b/i
+  const SHIFT_MATCHERS = {
+    morning_shift: /morning_shift|morning\s+shift/i,
+    afternoon_shift: /afternoon_shift|afternoon\s+shift/i,
+    night_shift: /night_shift|night\s+shift/i,
+    every_shift: /every_shift|every\s+shift/i,
+    weekly: /\bweekly\b/i,
+    optional: /\boptional\b/i
   };
+
+  const SHIFT_WITH_EVERY = new Set([
+    'morning_shift',
+    'afternoon_shift',
+    'night_shift'
+  ]);
 
   function extractEquipmentTag(firstCell) {
     if (!firstCell) return '';
@@ -58,12 +63,21 @@
       .trim();
   }
 
-  function matchesSchedule(taskId, badgeText, scheduleFilter) {
+  function matchesSchedule(taskId, badgeText, scheduleFilter, includeEveryShift) {
     if (!scheduleFilter || scheduleFilter === 'all') return true;
-    const regex = SCHEDULE_MATCHERS[scheduleFilter];
+    const regex = SHIFT_MATCHERS[scheduleFilter];
     if (!regex) return true;
+
     const combined = String(taskId || '') + ' ' + String(badgeText || '');
-    return regex.test(combined);
+    if (regex.test(combined)) {
+      return true;
+    }
+
+    if (includeEveryShift && SHIFT_WITH_EVERY.has(scheduleFilter)) {
+      return SHIFT_MATCHERS.every_shift.test(combined);
+    }
+
+    return false;
   }
 
   function parseKeywordList(raw) {
@@ -80,6 +94,87 @@
       if (lowerTask.includes(kw)) return kw;
     }
     return null;
+  }
+
+  function scoreLengthOption(opt) {
+    if (!opt) return -1;
+    const val = String(opt.value || '').trim();
+    const txt = String(opt.textContent || '').trim().toLowerCase();
+    if (val === '-1' || txt === 'all' || txt === 'semua') {
+      return Number.POSITIVE_INFINITY;
+    }
+    const num = Number(val);
+    if (Number.isFinite(num) && num > 0) {
+      return num;
+    }
+    return -1;
+  }
+
+  function isTargetLengthSelect(selectEl) {
+    if (!selectEl || selectEl.disabled) return false;
+    if (selectEl.matches('select[name*="_length"], .dataTables_length select')) {
+      return true;
+    }
+    for (const opt of selectEl.options) {
+      const val = String(opt.value || '').trim();
+      const txt = String(opt.textContent || '').trim().toLowerCase();
+      const num = Number(val);
+      if (
+        val === '-1' ||
+        val === '300' ||
+        val === '500' ||
+        (Number.isFinite(num) && num >= 250) ||
+        txt === 'all' ||
+        txt === 'semua'
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async function ensureAllRowsDisplayed() {
+    const prioritySelects = Array.from(
+      document.querySelectorAll('select[name*="_length"], .dataTables_length select')
+    );
+    const allSelects = Array.from(document.querySelectorAll('select'));
+    const candidates = Array.from(new Set([...prioritySelects, ...allSelects])).filter(isTargetLengthSelect);
+
+    let expanded = false;
+    let expandedTo = null;
+
+    for (const selectEl of candidates) {
+      let bestOption = null;
+      let bestScore = -1;
+
+      for (const opt of selectEl.options) {
+        if (opt.disabled) continue;
+        const score = scoreLengthOption(opt);
+        if (score > bestScore) {
+          bestScore = score;
+          bestOption = opt;
+        }
+      }
+
+      if (!bestOption || bestScore <= 0) continue;
+
+      const selectedOpt = selectEl.options[selectEl.selectedIndex];
+      const currentScore = scoreLengthOption(selectedOpt);
+
+      if (currentScore < bestScore) {
+        selectEl.value = bestOption.value;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        expanded = true;
+        expandedTo = String(bestOption.textContent || bestOption.value).trim();
+        break;
+      }
+    }
+
+    if (expanded) {
+      await sleep(600);
+    }
+
+    return { expanded: expanded, expandedTo: expandedTo };
   }
 
   function clearDryRunHighlights() {
@@ -126,12 +221,19 @@
       const cfg = options || {};
       const dryRun = Boolean(cfg.dryRun);
       const scheduleFilter = String(cfg.scheduleFilter || 'all');
+      const includeEveryShift = Boolean(cfg.includeEveryShift);
+      const autoShowAllRows = cfg.autoShowAllRows !== false;
       const equipmentMap = cfg.equipmentMap && typeof cfg.equipmentMap === 'object' ? cfg.equipmentMap : {};
       const runningExclusions = parseKeywordList(cfg.skipRunningKeywords);
       const standbyExclusions = parseKeywordList(cfg.skipStandbyKeywords);
       const delayMs = Math.max(0, Number(cfg.clickDelayMs) >= 0 ? Number(cfg.clickDelayMs) : 150);
 
       clearDryRunHighlights();
+
+      let paginationInfo = { expanded: false, expandedTo: null };
+      if (autoShowAllRows) {
+        paginationInfo = await ensureAllRowsDisplayed();
+      }
 
       const rows = Array.from(document.querySelectorAll('tr[data-task-id]'));
       let totalScanned = rows.length;
@@ -149,7 +251,7 @@
         const tag = extractEquipmentTag(firstCell);
         const badgeText = extractBadgeText(firstCell);
 
-        if (!matchesSchedule(taskId, badgeText, scheduleFilter)) {
+        if (!matchesSchedule(taskId, badgeText, scheduleFilter, includeEveryShift)) {
           skippedBySchedule++;
           continue;
         }
@@ -208,6 +310,9 @@
         ok: true,
         dryRun: dryRun,
         scheduleFilter: scheduleFilter,
+        includeEveryShift: includeEveryShift,
+        expandedRows: paginationInfo.expanded,
+        expandedTo: paginationInfo.expandedTo,
         totalScanned: totalScanned,
         matchedCount: matchedCount,
         newlyChecked: newlyChecked,

@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "TPM Smart Checklist",
+  "version": "1.2.0",
+  "description": "TPM Smart Checklist untuk Operator 1, 2, dan 3 dengan database modular, auto-detect shift, auto-expand tabel, Dry Run, dan eksekusi aman Vue.js.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TPM Smart Checklist"
+  },
+  "options_page": "options.html"
+}

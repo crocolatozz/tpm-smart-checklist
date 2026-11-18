@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pengaturan — Smart Checklist Runner</title>
+  <title>Pengaturan — TPM Smart Checklist</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body class="is-options">
@@ -12,10 +12,10 @@
       <div class="options-title-group">
         <span class="brand-mark" data-icon="clipboard-check" data-size="18"></span>
         <div>
-          <h1 class="options-title">Smart Checklist Runner</h1>
-          <div class="options-subtitle">Manajemen Equipment Operator 1 &amp; Aturan Pengecualian Tugas</div>
+          <h1 class="options-title">TPM Smart Checklist</h1>
+          <div class="options-subtitle">Manajemen Equipment Operator 1–3 &amp; Aturan Pengecualian Tugas</div>
         </div>
-        <span id="options-version" class="badge-version">v1.0.0</span>
+        <span id="options-version" class="badge-version">v1.2.0</span>
       </div>
 
       <div class="header-actions">
@@ -33,9 +33,9 @@
     <section class="card">
       <div class="card-head">
         <div>
-          <h2 class="card-title">Aturan Pengecualian Tugas (Task Exclusion)</h2>
+          <h2 class="card-title">Aturan Pengecualian Tugas (Global Across Operators)</h2>
           <p class="card-desc">
-            Kata kunci dipisahkan dengan koma (case-insensitive). Jika teks tugas mengandung kata kunci sesuai status unit, baris akan dilewati.
+            Kata kunci dipisahkan dengan koma (case-insensitive) terhadap teks penuh di kolom tugas.
           </p>
         </div>
       </div>
@@ -65,15 +65,30 @@
       </div>
     </section>
 
-    <!-- Operator 1 Equipment Manager -->
+    <!-- Multi-Operator Equipment Manager -->
     <section class="card">
       <div class="card-head">
         <div>
-          <h2 class="card-title">Operator 1 Equipment Manager</h2>
+          <h2 class="card-title">Multi-Operator Equipment Manager</h2>
           <p class="card-desc">
-            Atur status tiap tag equipment menjadi RUNNING, STANDBY, atau IGNORE (dilewati sepenuhnya).
+            Kelola status tag tiap operator (RUNNING, STANDBY, IGNORE) dan tukar cepat pasangan unit A↔B.
           </p>
         </div>
+      </div>
+
+      <div class="op-tabs-bar">
+        <div class="op-tabs" role="tablist" aria-label="Pilih Tab Operator">
+          <button type="button" role="tab" class="op-tab-btn is-active" data-op-tab="op1">
+            Operator 1 (<span id="op1-total">30</span>)
+          </button>
+          <button type="button" role="tab" class="op-tab-btn" data-op-tab="op2">
+            Operator 2 (<span id="op2-total">9</span>)
+          </button>
+          <button type="button" role="tab" class="op-tab-btn" data-op-tab="op3">
+            Operator 3 (<span id="op3-total">17</span>)
+          </button>
+        </div>
+        <span id="op-area-badge" class="op-area-badge">LAPANGAN 1 (GROUND)</span>
       </div>
 
       <div class="equip-toolbar">
@@ -159,7 +174,7 @@
 
     <footer class="options-footer">
       <span>© 2026 — Developed by FIKRI</span>
-      <span id="options-footer-ver" class="version-pill">v1.0.0</span>
+      <span id="options-footer-ver" class="version-pill">v1.2.0</span>
     </footer>
   </div>
 
@@ -170,8 +185,8 @@
         <h3 id="bulk-modal-title" class="modal-title">Bulk Paste Equipment Tag</h3>
         <button id="bulk-close-btn" type="button" class="icon-btn" aria-label="Tutup"></button>
       </div>
-      <p class="card-desc">
-        Tempel daftar tag (satu tag per baris). Tag baru akan ditambahkan ke daftar Operator 1 dengan status awal pilihan di bawah.
+      <p id="bulk-modal-desc" class="card-desc">
+        Tempel daftar tag (satu tag per baris) untuk ditambahkan ke operator aktif.
       </p>
       <div class="field-group">
         <label for="bulk-default-state" class="field-label">Status Awal Tag Baru</label>
@@ -194,8 +209,6 @@
     </div>
   </div>
 
-  <script src="./icons.js"></script>
-  <script src="./storage.js"></script>
-  <script src="./options.js"></script>
+  <script type="module" src="./options.js"></script>
 </body>
 </html>
