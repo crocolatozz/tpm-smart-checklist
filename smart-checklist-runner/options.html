@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pengaturan — Smart Checklist Runner</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="is-options">
+  <div class="options-container">
+    <header class="options-header">
+      <div class="options-title-group">
+        <span class="brand-mark" data-icon="clipboard-check" data-size="18"></span>
+        <div>
+          <h1 class="options-title">Smart Checklist Runner</h1>
+          <div class="options-subtitle">Manajemen Equipment Operator 1 &amp; Aturan Pengecualian Tugas</div>
+        </div>
+        <span id="options-version" class="badge-version">v1.0.0</span>
+      </div>
+
+      <div class="header-actions">
+        <span id="save-toast" class="save-toast">Tersimpan</span>
+        <button
+          id="options-theme-btn"
+          type="button"
+          class="btn btn-sm"
+          title="Ganti Tema Terang / Gelap"
+        ></button>
+      </div>
+    </header>
+
+    <!-- Task Exclusion Settings -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2 class="card-title">Aturan Pengecualian Tugas (Task Exclusion)</h2>
+          <p class="card-desc">
+            Kata kunci dipisahkan dengan koma (case-insensitive). Jika teks tugas mengandung kata kunci sesuai status unit, baris akan dilewati.
+          </p>
+        </div>
+      </div>
+
+      <div class="two-col-grid">
+        <div class="field-group">
+          <label for="skip-running-input" class="field-label">Skip Task Keywords when RUNNING</label>
+          <input
+            id="skip-running-input"
+            type="text"
+            class="control-input"
+            placeholder="contoh: Putar poros"
+          />
+          <span class="input-hint">Default: Putar poros</span>
+        </div>
+
+        <div class="field-group">
+          <label for="skip-standby-input" class="field-label">Skip Task Keywords when STANDBY</label>
+          <input
+            id="skip-standby-input"
+            type="text"
+            class="control-input"
+            placeholder="contoh: Kelainan suara"
+          />
+          <span class="input-hint">Default: Kelainan suara</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Operator 1 Equipment Manager -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2 class="card-title">Operator 1 Equipment Manager</h2>
+          <p class="card-desc">
+            Atur status tiap tag equipment menjadi RUNNING, STANDBY, atau IGNORE (dilewati sepenuhnya).
+          </p>
+        </div>
+      </div>
+
+      <div class="equip-toolbar">
+        <div class="search-wrap">
+          <span class="search-icon" data-icon="search" data-size="14"></span>
+          <input
+            id="equip-search-input"
+            type="text"
+            class="search-input"
+            placeholder="Cari tag equipment (mis. GA201)..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+
+        <div class="equip-actions">
+          <button id="scrape-tab-btn" type="button" class="btn btn-sm"></button>
+          <button id="bulk-paste-btn" type="button" class="btn btn-sm"></button>
+          <button id="reset-default-btn" type="button" class="btn btn-sm btn-danger"></button>
+        </div>
+      </div>
+
+      <div id="equip-status-msg" class="input-hint is-hidden"></div>
+
+      <div class="filter-pills" role="tablist" aria-label="Filter Status Equipment">
+        <button type="button" class="pill-btn is-active" data-filter="ALL">Semua (<span id="count-all">0</span>)</button>
+        <button type="button" class="pill-btn" data-filter="RUNNING">Running (<span id="count-running">0</span>)</button>
+        <button type="button" class="pill-btn" data-filter="STANDBY">Standby (<span id="count-standby">0</span>)</button>
+        <button type="button" class="pill-btn" data-filter="IGNORE">Ignore (<span id="count-ignore">0</span>)</button>
+      </div>
+
+      <div id="equip-list" class="equip-list"></div>
+    </section>
+
+    <!-- General & Backup -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2 class="card-title">General &amp; Backup</h2>
+          <p class="card-desc">Pola URL target, jeda klik Vue.js, ekspor/impor konfigurasi JSON, dan riwayat eksekusi.</p>
+        </div>
+      </div>
+
+      <div class="two-col-grid">
+        <div class="field-group">
+          <label for="url-pattern-input" class="field-label">Target URL Wildcard Pattern</label>
+          <input
+            id="url-pattern-input"
+            type="text"
+            class="control-input"
+            placeholder="*"
+          />
+          <span class="input-hint">Default: * (mendukung wildcard * dan ?)</span>
+        </div>
+
+        <div class="field-group">
+          <label for="click-delay-input" class="field-label">Click Delay (ms)</label>
+          <input
+            id="click-delay-input"
+            type="number"
+            min="0"
+            max="5000"
+            step="10"
+            class="control-input"
+          />
+          <span class="input-hint">Jeda antar klik checkbox agar reaktivitas Vue tetap stabil (default: 150ms)</span>
+        </div>
+      </div>
+
+      <div class="equip-actions">
+        <button id="export-json-btn" type="button" class="btn btn-sm"></button>
+        <button id="import-json-btn" type="button" class="btn btn-sm"></button>
+        <input id="import-file-input" type="file" accept=".json,application/json" class="is-hidden" />
+      </div>
+
+      <div class="card-head" style="margin-top:6px;">
+        <h3 class="card-title" style="font-size:13.5px;">Execution History (20 Terakhir)</h3>
+        <button id="clear-history-btn" type="button" class="btn btn-sm"></button>
+      </div>
+
+      <div id="history-list" class="history-list"></div>
+    </section>
+
+    <footer class="options-footer">
+      <span>© 2026 — Developed by FIKRI</span>
+      <span id="options-footer-ver" class="version-pill">v1.0.0</span>
+    </footer>
+  </div>
+
+  <!-- Bulk Paste Tag Modal -->
+  <div id="bulk-modal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="bulk-modal-title">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h3 id="bulk-modal-title" class="modal-title">Bulk Paste Equipment Tag</h3>
+        <button id="bulk-close-btn" type="button" class="icon-btn" aria-label="Tutup"></button>
+      </div>
+      <p class="card-desc">
+        Tempel daftar tag (satu tag per baris). Tag baru akan ditambahkan ke daftar Operator 1 dengan status awal pilihan di bawah.
+      </p>
+      <div class="field-group">
+        <label for="bulk-default-state" class="field-label">Status Awal Tag Baru</label>
+        <select id="bulk-default-state" class="control-select">
+          <option value="RUNNING">RUNNING</option>
+          <option value="STANDBY">STANDBY</option>
+          <option value="IGNORE">IGNORE</option>
+        </select>
+      </div>
+      <textarea
+        id="bulk-textarea"
+        class="bulk-textarea"
+        placeholder="B-02-U-GA201A&#10;B-02-U-GA201B"
+        spellcheck="false"
+      ></textarea>
+      <div class="modal-footer">
+        <button id="bulk-cancel-btn" type="button" class="btn btn-sm">Batal</button>
+        <button id="bulk-apply-btn" type="button" class="btn btn-sm btn-primary">Tambahkan Tag</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./icons.js"></script>
+  <script src="./storage.js"></script>
+  <script src="./options.js"></script>
+</body>
+</html>

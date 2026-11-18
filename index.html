@@ -275,7 +275,7 @@
     /* Mode 1: Popup + Target Web */
     .split-layout {
       display: grid;
-      grid-template-columns: 388px minmax(0, 1fr);
+      grid-template-columns: 404px minmax(0, 1fr);
       width: 100%;
       height: 100%;
       min-height: 0;
@@ -293,7 +293,7 @@
     }
 
     .stage-header {
-      width: 320px;
+      width: 340px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -314,7 +314,7 @@
     }
 
     .chrome-popup-window {
-      width: 320px;
+      width: 340px;
       min-height: 460px;
       border-radius: 12px;
       border: 1px solid var(--border-strong);
@@ -357,16 +357,16 @@
     }
 
     .popup-iframe {
-      width: 320px;
+      width: 340px;
       min-height: 460px;
-      height: 480px;
+      height: 490px;
       border: 0;
       display: block;
       background-color: #ffffff;
     }
 
     .stage-caption {
-      width: 320px;
+      width: 340px;
       margin-top: 14px;
       font-size: 12px;
       color: var(--text-muted);
@@ -463,7 +463,7 @@
       border-radius: var(--radius-md);
       background-color: var(--bg-inset);
       overflow: auto;
-      max-height: 210px;
+      max-height: 290px;
     }
 
     table.target-table {
@@ -483,10 +483,11 @@
       padding: 9px 12px;
       border-bottom: 1px solid var(--border-subtle);
       white-space: nowrap;
+      z-index: 2;
     }
 
     .target-table td {
-      padding: 8px 12px;
+      padding: 9px 12px;
       border-bottom: 1px solid var(--border-subtle);
       color: var(--text-primary);
       vertical-align: middle;
@@ -504,26 +505,65 @@
       background-color: rgba(59, 130, 246, 0.16);
     }
 
-    .col-num {
-      width: 48px;
-      font-family: var(--font-mono);
-      font-variant-numeric: tabular-nums;
-      color: var(--text-muted);
+    .vue-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      vertical-align: middle;
     }
 
-    .col-actions {
-      width: 72px;
-      text-align: right;
+    .badge-shift {
+      background-color: rgba(59, 130, 246, 0.16);
+      color: #93c5fd;
     }
 
-    .status-text {
-      font-size: 12px;
-      font-weight: 500;
+    .badge-daily {
+      background-color: rgba(16, 185, 129, 0.16);
+      color: #6ee7b7;
     }
 
-    .status-ok { color: #34d399; }
-    .status-warn { color: #fbbf24; }
-    .status-info { color: #60a5fa; }
+    .badge-weekly {
+      background-color: rgba(168, 85, 247, 0.18);
+      color: #d8b4fe;
+    }
+
+    .badge-monthly {
+      background-color: rgba(245, 158, 11, 0.18);
+      color: #fcd34d;
+    }
+
+    .fw-bold {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .small.text-muted {
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .col-check {
+      width: 96px;
+      text-align: center;
+    }
+
+    .vue-checkbox {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .vue-switch {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--warning);
+      cursor: pointer;
+    }
 
     /* Console & Storage Inspector Section */
     .console-section {
@@ -818,8 +858,8 @@
             id="folder-input"
             class="input-text"
             type="text"
-            value="sample-ext"
-            placeholder="sample-ext"
+            value="smart-checklist-runner"
+            placeholder="smart-checklist-runner"
             spellcheck="false"
             autocomplete="off"
           />
@@ -862,12 +902,12 @@
           <aside class="popup-stage">
             <div class="stage-header">
               <span class="stage-title">Popup Ekstensi</span>
-              <span class="stage-dimensions">320 × 460+ px</span>
+              <span class="stage-dimensions">340 × 490 px</span>
             </div>
 
             <div class="chrome-popup-window">
               <div class="chrome-window-bar">
-                <span id="popup-win-title" class="chrome-window-title">Extension Popup</span>
+                <span id="popup-win-title" class="chrome-window-title">Smart Checklist Runner</span>
                 <span id="popup-win-path" class="chrome-window-path">popup.html</span>
               </div>
               <iframe
@@ -885,7 +925,7 @@
             </div>
 
             <p class="stage-caption">
-              API <code>chrome.storage.local</code>, <code>chrome.runtime</code>, dan <code>chrome.tabs</code> disuntikkan otomatis sebelum skrip halaman popup dijalankan.
+              API <code>chrome.storage.local</code>, <code>chrome.runtime</code>, <code>chrome.tabs</code>, dan <code>chrome.scripting</code> disimulasikan langsung terhadap Mock Tabel Vue.js di sebelah kanan.
             </p>
           </aside>
 
@@ -894,46 +934,22 @@
             <div id="target-section" class="target-section">
               <div class="section-top">
                 <div class="section-heading-group">
-                  <h2 class="section-heading">Simulasi Halaman Web Target</h2>
-                  <span class="section-sub">https://localhost/target-web</span>
+                  <h2 class="section-heading">Simulasi Tabel Vue.js Target (Operator 1)</h2>
+                  <span class="section-sub">https://checklist.internal.local/operator-1</span>
                 </div>
                 <div style="display:flex; gap:8px; align-items:center;">
                   <button id="target-reset-btn" type="button" class="btn btn-sm">Reset Tabel</button>
                 </div>
               </div>
 
-              <form id="target-form" class="target-form">
-                <input
-                  id="target-name"
-                  class="target-input"
-                  type="text"
-                  placeholder="Nama item / field target"
-                  required
-                />
-                <input
-                  id="target-category"
-                  class="target-input"
-                  type="text"
-                  placeholder="Kategori (mis. Riset)"
-                  required
-                />
-                <select id="target-status" class="target-input" aria-label="Status item">
-                  <option value="Aktif">Aktif</option>
-                  <option value="Draft">Draft</option>
-                  <option value="Terisi">Terisi</option>
-                </select>
-                <button type="submit" class="btn btn-primary">Tambah Baris</button>
-              </form>
-
               <div class="table-wrap">
                 <table class="target-table">
                   <thead>
                     <tr>
-                      <th class="col-num">#</th>
-                      <th>Nama Item / Input</th>
-                      <th>Kategori</th>
-                      <th>Status</th>
-                      <th class="col-actions">Aksi</th>
+                      <th>Equipment &amp; Jadwal</th>
+                      <th>Task / Deskripsi Pekerjaan</th>
+                      <th class="col-check">Executed</th>
+                      <th class="col-check">Maint.</th>
                     </tr>
                   </thead>
                   <tbody id="target-tbody"></tbody>
@@ -1023,27 +1039,93 @@
         active: true,
         highlighted: true,
         status: 'complete',
-        title: 'Target Web Simulator',
-        url: 'https://localhost/target-web'
+        title: 'TPM Smart Checklist - Operator 1',
+        url: 'https://checklist.internal.local/operator-1'
       };
 
-      const INITIAL_TARGET_ROWS = [
-        { id: 1, name: 'Formulir Pendaftaran Mitra', category: 'Onboarding', status: 'Aktif' },
-        { id: 2, name: 'Data Katalog Produk Q4', category: 'Inventaris', status: 'Draft' },
-        { id: 3, name: 'Konfigurasi Webhook API', category: 'Integrasi', status: 'Aktif' }
+      const INITIAL_VUE_ROWS = [
+        {
+          taskId: '1537_morning_shift',
+          tag: 'B-02-U-GA201A',
+          badges: [{ label: 'Morning Shift', cls: 'badge-shift' }],
+          title: 'Oil cup',
+          subtitle: '• Cek level oli pada sight glass',
+          execId: 'is_executed_1537',
+          maintId: 'need_maintenance_1537',
+          executed: false,
+          needMaintenance: false
+        },
+        {
+          taskId: '1538_morning_shift',
+          tag: 'B-02-U-GA201A',
+          badges: [{ label: 'Morning Shift', cls: 'badge-shift' }],
+          title: 'Putar poros',
+          subtitle: '• Putar poros pompa secara manual saat standby',
+          execId: 'is_executed_1538',
+          maintId: 'need_maintenance_1538',
+          executed: false,
+          needMaintenance: false
+        },
+        {
+          taskId: '1539_night_shift',
+          tag: 'B-02-U-GA201B',
+          badges: [{ label: 'Night Shift', cls: 'badge-shift' }],
+          title: 'Kelainan suara',
+          subtitle: '• Dengarkan vibrasi dan kelainan suara bearing',
+          execId: 'is_executed_1539',
+          maintId: 'need_maintenance_1539',
+          executed: false,
+          needMaintenance: true
+        },
+        {
+          taskId: '1540_daily',
+          tag: 'B-02-U-GA201B',
+          badges: [{ label: 'Daily', cls: 'badge-daily' }],
+          title: 'Check bearing temp',
+          subtitle: '• Ukur temperatur rumah bearing DE/NDE',
+          execId: 'is_executed_1540',
+          maintId: 'need_maintenance_1540',
+          executed: false,
+          needMaintenance: false
+        },
+        {
+          taskId: '1541_weekly',
+          tag: 'B-02-U-GA102A',
+          badges: [{ label: 'Weekly', cls: 'badge-weekly' }],
+          title: 'Periksa kebocoran mechanical seal',
+          subtitle: '• Pastikan tidak ada rembesan fluida',
+          execId: 'is_executed_1541',
+          maintId: 'need_maintenance_1541',
+          executed: true,
+          needMaintenance: false
+        },
+        {
+          taskId: '1542_afternoon_monthly',
+          tag: 'B-02-U-GA102B',
+          badges: [
+            { label: 'Afternoon Shift', cls: 'badge-shift' },
+            { label: 'Monthly', cls: 'badge-monthly' }
+          ],
+          title: 'Cleaning body motor & strainer',
+          subtitle: '• Bersihkan area sekitar unit',
+          execId: 'is_executed_1542',
+          maintId: 'need_maintenance_1542',
+          executed: false,
+          needMaintenance: false
+        }
       ];
 
       const state = {
-        folder: 'sample-ext',
+        folder: 'smart-checklist-runner',
         activeView: 'popup',
         activeInspectorTab: 'console',
         manifest: null,
-        targetRows: INITIAL_TARGET_ROWS.map((row) => ({ ...row })),
-        nextRowId: 4,
+        targetRows: INITIAL_VUE_ROWS.map((row) => ({ ...row })),
         logs: [],
         // Active listener registrations tied to specific iframe Window references
         storageListeners: new Set(),
-        runtimeMessageListeners: new Set()
+        runtimeMessageListeners: new Set(),
+        tabMessageListeners: new Set()
       };
 
       // DOM elements
@@ -1070,10 +1152,6 @@
       const elOptionsRetryBtn = document.getElementById('options-retry-btn');
 
       const elTargetSection = document.getElementById('target-section');
-      const elTargetForm = document.getElementById('target-form');
-      const elTargetName = document.getElementById('target-name');
-      const elTargetCategory = document.getElementById('target-category');
-      const elTargetStatus = document.getElementById('target-status');
       const elTargetTbody = document.getElementById('target-tbody');
       const elTargetResetBtn = document.getElementById('target-reset-btn');
 
@@ -1201,26 +1279,24 @@
         }).join('');
       }
 
-      // Target Web Table Rendering & Message Interaction
-      function renderTargetTable(flashRowId) {
-        if (state.targetRows.length === 0) {
-          elTargetTbody.innerHTML =
-            '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:20px;">Tabel target kosong. Tambahkan baris melalui formulir atau kirim pesan autofill dari ekstensi.</td></tr>';
-          return;
-        }
-        elTargetTbody.innerHTML = state.targetRows.map((row, idx) => {
-          const statusClass =
-            row.status === 'Aktif' ? 'status-ok' :
-            row.status === 'Draft' ? 'status-warn' : 'status-info';
-          const rowClass = flashRowId === row.id ? ' class="row-flash"' : '';
+      // Mock Vue.js Table Rendering & Message Interaction
+      function renderTargetTable() {
+        elTargetTbody.innerHTML = state.targetRows.map((row) => {
+          const badgesHtml = row.badges
+            .map((b) => '<span class="vue-badge ' + escapeHtml(b.cls) + '">' + escapeHtml(b.label) + '</span>')
+            .join('');
           return (
-            '<tr' + rowClass + '>' +
-              '<td class="col-num">' + String(idx + 1) + '</td>' +
-              '<td>' + escapeHtml(row.name) + '</td>' +
-              '<td>' + escapeHtml(row.category) + '</td>' +
-              '<td><span class="status-text ' + statusClass + '">' + escapeHtml(row.status) + '</span></td>' +
-              '<td class="col-actions">' +
-                '<button type="button" class="btn btn-sm" data-delete-row="' + row.id + '">Hapus</button>' +
+            '<tr data-task-id="' + escapeHtml(row.taskId) + '">' +
+              '<td>' + escapeHtml(row.tag) + badgesHtml + '</td>' +
+              '<td class="task-column">' +
+                '<div class="fw-bold">' + escapeHtml(row.title) + '</div>' +
+                '<div class="small text-muted">' + escapeHtml(row.subtitle) + '</div>' +
+              '</td>' +
+              '<td class="col-check">' +
+                '<input type="checkbox" class="vue-checkbox" id="' + escapeHtml(row.execId) + '"' + (row.executed ? ' checked' : '') + ' aria-label="Executed ' + escapeHtml(row.tag) + '" />' +
+              '</td>' +
+              '<td class="col-check">' +
+                '<input type="checkbox" class="vue-switch" id="' + escapeHtml(row.maintId) + '"' + (row.needMaintenance ? ' checked' : '') + ' aria-label="Need Maintenance ' + escapeHtml(row.tag) + '" />' +
               '</td>' +
             '</tr>'
           );
@@ -1239,36 +1315,6 @@
 
         if (message && typeof message === 'object') {
           const action = message.action || message.type;
-
-          if (action === 'AUTOFILL_SAMPLE' || action === 'AUTOFILL_FORM') {
-            const payload = message.data || message.payload || {};
-            const nameVal = String(payload.nama || payload.name || 'Entri Otomatis Ekstensi');
-            const categoryVal = String(payload.kategori || payload.category || 'Autofill');
-            const statusVal = String(payload.status || 'Terisi');
-
-            elTargetName.value = nameVal;
-            elTargetCategory.value = categoryVal;
-            if (['Aktif', 'Draft', 'Terisi'].includes(statusVal)) {
-              elTargetStatus.value = statusVal;
-            }
-
-            const newId = state.nextRowId++;
-            state.targetRows.push({
-              id: newId,
-              name: nameVal,
-              category: categoryVal,
-              status: statusVal
-            });
-            renderTargetTable(newId);
-
-            return {
-              ok: true,
-              handledBy: 'target-web',
-              action: action,
-              insertedRowId: newId,
-              totalRows: state.targetRows.length
-            };
-          }
 
           if (action === 'GET_PAGE_DATA') {
             return {
@@ -1582,15 +1628,55 @@
                   responseCallback = options;
                   options = undefined;
                 }
-                return wrapAsync(() => {
+                const promise = new Promise((resolve) => {
                   addLog(
                     'message',
                     'tabs.sendMessage',
                     'Mengirim pesan ke Tab #' + tabId + ' dari ' + contextType,
                     message
                   );
-                  return handleTargetWebMessage(message, contextType);
-                }, responseCallback);
+                  flashTargetHighlight();
+
+                  const tabListeners = Array.from(state.tabMessageListeners).filter(
+                    (entry) => entry.folder === folder
+                  );
+
+                  if (tabListeners.length > 0) {
+                    let settled = false;
+                    const sender = { id: extId, tab: { ...MOCK_TAB } };
+                    const done = function (res) {
+                      if (settled) return;
+                      settled = true;
+                      addLog('message', 'content.response', 'Respons dari content script Tab #' + tabId, res);
+                      if (typeof responseCallback === 'function') {
+                        responseCallback(res);
+                      }
+                      resolve(res);
+                    };
+
+                    for (const entry of tabListeners) {
+                      try {
+                        const isAsync = entry.fn(message, sender, done);
+                        if (!isAsync && !settled) {
+                          // If listener handled synchronously without calling sendResponse
+                          window.setTimeout(() => {
+                            if (!settled) done({ ok: true });
+                          }, 0);
+                        }
+                      } catch (err) {
+                        done({ ok: false, error: err && err.message ? err.message : String(err) });
+                      }
+                    }
+                    return;
+                  }
+
+                  const fallbackRes = handleTargetWebMessage(message, contextType);
+                  if (typeof responseCallback === 'function') {
+                    responseCallback(fallbackRes);
+                  }
+                  resolve(fallbackRes);
+                });
+                return promise;
               },
 
               create: function (createProperties, callback) {
@@ -1612,6 +1698,56 @@
                     url: url
                   };
                 }, callback);
+              }
+            },
+
+            scripting: {
+              executeScript: function (injection, callback) {
+                const promise = (async () => {
+                  const files = Array.isArray(injection && injection.files) ? injection.files : [];
+                  const fn = injection && typeof injection.func === 'function' ? injection.func : null;
+                  const args = Array.isArray(injection && injection.args) ? injection.args : [];
+                  const results = [];
+
+                  if (files.length > 0) {
+                    addLog('tabs', 'scripting.executeScript', 'Menyuntikkan file ke Tab aktif', { files: files });
+                    for (const file of files) {
+                      const cleanFile = String(file).replace(/^\/+/, '');
+                      const res = await fetch('./' + folder + '/' + cleanFile + '?_ts=' + Date.now(), { cache: 'no-store' });
+                      if (!res.ok) {
+                        throw new Error('Gagal memuat ' + cleanFile + ' (HTTP ' + res.status + ')');
+                      }
+                      const code = await res.text();
+                      const tabChrome = {
+                        runtime: {
+                          id: extId,
+                          onMessage: {
+                            addListener: function (listenerFn) {
+                              if (typeof listenerFn === 'function') {
+                                state.tabMessageListeners.add({ folder: folder, fn: listenerFn });
+                              }
+                            }
+                          }
+                        }
+                      };
+                      const runner = new Function('chrome', code);
+                      runner(tabChrome);
+                      results.push({ frameId: 0, result: null });
+                    }
+                  }
+
+                  if (fn) {
+                    addLog('tabs', 'scripting.executeScript', 'Menjalankan fungsi scraper di Tab aktif');
+                    const out = fn.apply(window, args);
+                    results.push({ frameId: 0, result: out });
+                  }
+
+                  if (typeof callback === 'function') {
+                    callback(results);
+                  }
+                  return results;
+                })();
+                return promise;
               }
             }
           };
@@ -1731,6 +1867,10 @@
       async function loadExtension(rawFolder) {
         const folder = sanitizeFolder(rawFolder);
         state.folder = folder;
+        window.__SCR_CONTENT_LOADED__ = false;
+        window.__SCR_IS_RUNNING__ = false;
+        state.tabMessageListeners.clear();
+
         elFolderInput.value = folder;
         elPopupWinPath.textContent = './' + folder + '/popup.html';
         elOptionsPathLabel.textContent = './' + folder + '/options.html';
@@ -1767,6 +1907,7 @@
       elResetStorageBtn.addEventListener('click', function () {
         const storageKey = getStorageKeyPrefix(state.folder);
         window.localStorage.removeItem(storageKey);
+        window.localStorage.removeItem('smart_checklist_runner_v1_state');
         renderStorageInspector();
         addLog('storage', 'reset', 'Mock storage untuk "' + state.folder + '" dihapus dan pratinjau dimuat ulang.');
         loadExtension(state.folder);
@@ -1780,36 +1921,17 @@
         loadExtensionFileIntoIframe(elOptionsFrame, elOptionsError, elOptionsErrorText, state.folder, 'options.html', 'options');
       });
 
-      elTargetForm.addEventListener('submit', function (e) {
-        e.preventDefault();
-        const nameVal = elTargetName.value.trim();
-        const catVal = elTargetCategory.value.trim();
-        const statusVal = elTargetStatus.value;
-        if (!nameVal || !catVal) return;
-
-        const newId = state.nextRowId++;
-        state.targetRows.push({
-          id: newId,
-          name: nameVal,
-          category: catVal,
-          status: statusVal
-        });
-        elTargetName.value = '';
-        elTargetCategory.value = '';
-        renderTargetTable(newId);
-      });
-
-      elTargetTbody.addEventListener('click', function (e) {
-        const btn = e.target.closest('button[data-delete-row]');
-        if (!btn) return;
-        const rowId = Number(btn.getAttribute('data-delete-row'));
-        state.targetRows = state.targetRows.filter((row) => row.id !== rowId);
-        renderTargetTable();
+      elTargetTbody.addEventListener('change', function (e) {
+        const input = e.target;
+        if (!input || input.type !== 'checkbox') return;
+        const row = state.targetRows.find((r) => r.execId === input.id || r.maintId === input.id);
+        if (!row) return;
+        if (input.id === row.execId) row.executed = input.checked;
+        if (input.id === row.maintId) row.needMaintenance = input.checked;
       });
 
       elTargetResetBtn.addEventListener('click', function () {
-        state.targetRows = INITIAL_TARGET_ROWS.map((row) => ({ ...row }));
-        state.nextRowId = 4;
+        state.targetRows = INITIAL_VUE_ROWS.map((row) => ({ ...row }));
         renderTargetTable();
       });
 

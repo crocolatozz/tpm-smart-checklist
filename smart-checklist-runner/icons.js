@@ -1,0 +1,123 @@
+(function (global) {
+  'use strict';
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  const ICON_PATHS = {
+    'clipboard-check': [
+      { tag: 'rect', attrs: { x: '8', y: '2', width: '8', height: '4', rx: '1', ry: '1' } },
+      { tag: 'path', attrs: { d: 'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2' } },
+      { tag: 'path', attrs: { d: 'm9 14 2 2 4-4' } }
+    ],
+    sun: [
+      { tag: 'circle', attrs: { cx: '12', cy: '12', r: '4' } },
+      { tag: 'path', attrs: { d: 'M12 2v2' } },
+      { tag: 'path', attrs: { d: 'M12 20v2' } },
+      { tag: 'path', attrs: { d: 'm4.93 4.93 1.41 1.41' } },
+      { tag: 'path', attrs: { d: 'm17.66 17.66 1.41 1.41' } },
+      { tag: 'path', attrs: { d: 'M2 12h2' } },
+      { tag: 'path', attrs: { d: 'M20 12h2' } },
+      { tag: 'path', attrs: { d: 'm6.34 17.66-1.41 1.41' } },
+      { tag: 'path', attrs: { d: 'm19.07 4.93-1.41 1.41' } }
+    ],
+    moon: [
+      { tag: 'path', attrs: { d: 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z' } }
+    ],
+    settings: [
+      { tag: 'path', attrs: { d: 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z' } },
+      { tag: 'circle', attrs: { cx: '12', cy: '12', r: '3' } }
+    ],
+    eye: [
+      { tag: 'path', attrs: { d: 'M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z' } },
+      { tag: 'circle', attrs: { cx: '12', cy: '12', r: '3' } }
+    ],
+    play: [
+      { tag: 'polygon', attrs: { points: '6 3 20 12 6 21 6 3' } }
+    ],
+    search: [
+      { tag: 'circle', attrs: { cx: '11', cy: '11', r: '8' } },
+      { tag: 'path', attrs: { d: 'm21 21-4.3-4.3' } }
+    ],
+    download: [
+      { tag: 'path', attrs: { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' } },
+      { tag: 'polyline', attrs: { points: '7 10 12 15 17 10' } },
+      { tag: 'line', attrs: { x1: '12', x2: '12', y1: '15', y2: '3' } }
+    ],
+    upload: [
+      { tag: 'path', attrs: { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' } },
+      { tag: 'polyline', attrs: { points: '17 8 12 3 7 8' } },
+      { tag: 'line', attrs: { x1: '12', x2: '12', y1: '3', y2: '15' } }
+    ],
+    'rotate-ccw': [
+      { tag: 'path', attrs: { d: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8' } },
+      { tag: 'path', attrs: { d: 'M3 3v5h5' } }
+    ],
+    plus: [
+      { tag: 'path', attrs: { d: 'M5 12h14' } },
+      { tag: 'path', attrs: { d: 'M12 5v14' } }
+    ],
+    scan: [
+      { tag: 'path', attrs: { d: 'M3 7V5a2 2 0 0 1 2-2h2' } },
+      { tag: 'path', attrs: { d: 'M17 3h2a2 2 0 0 1 2 2v2' } },
+      { tag: 'path', attrs: { d: 'M21 17v2a2 2 0 0 1-2 2h-2' } },
+      { tag: 'path', attrs: { d: 'M7 21H5a2 2 0 0 1-2-2v-2' } },
+      { tag: 'path', attrs: { d: 'M7 12h10' } }
+    ],
+    trash: [
+      { tag: 'path', attrs: { d: 'M3 6h18' } },
+      { tag: 'path', attrs: { d: 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6' } },
+      { tag: 'path', attrs: { d: 'M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2' } }
+    ],
+    x: [
+      { tag: 'path', attrs: { d: 'M18 6 6 18' } },
+      { tag: 'path', attrs: { d: 'm6 6 12 12' } }
+    ],
+    check: [
+      { tag: 'path', attrs: { d: 'M20 6 9 17l-5-5' } }
+    ]
+  };
+
+  function createSvgIcon(name, size) {
+    const iconSize = Number(size) || 16;
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('width', String(iconSize));
+    svg.setAttribute('height', String(iconSize));
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.classList.add('scr-icon');
+
+    const shapes = ICON_PATHS[name] || [];
+    for (const shape of shapes) {
+      const el = document.createElementNS(SVG_NS, shape.tag);
+      for (const [key, val] of Object.entries(shape.attrs)) {
+        el.setAttribute(key, val);
+      }
+      svg.appendChild(el);
+    }
+    return svg;
+  }
+
+  function hydrateIcons(root) {
+    const scope = root || document;
+    const targets = scope.querySelectorAll('[data-icon]');
+    for (const el of targets) {
+      const name = el.getAttribute('data-icon');
+      const size = Number(el.getAttribute('data-size')) || 16;
+      if (!name) continue;
+      el.replaceChildren(createSvgIcon(name, size));
+    }
+  }
+
+  global.createSvgIcon = createSvgIcon;
+  global.renderIcon = createSvgIcon;
+  global.SCRIcons = {
+    createSvgIcon: createSvgIcon,
+    renderIcon: createSvgIcon,
+    hydrateIcons: hydrateIcons
+  };
+})(window);

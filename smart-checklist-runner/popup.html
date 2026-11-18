@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Checklist Runner</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="is-popup">
+  <div class="popup-shell">
+    <header class="popup-header">
+      <div class="brand-row">
+        <span class="brand-mark" data-icon="clipboard-check" data-size="16"></span>
+        <div class="brand-text-wrap">
+          <h1 class="popup-title">Smart Checklist Runner</h1>
+          <span id="popup-version" class="version-pill">v1.0.0</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button
+          id="theme-toggle-btn"
+          type="button"
+          class="icon-btn"
+          title="Ganti Tema Terang / Gelap"
+          aria-label="Ganti Tema"
+        ></button>
+        <button
+          id="open-options-btn"
+          type="button"
+          class="icon-btn"
+          title="Buka Pengaturan Lengkap"
+          aria-label="Pengaturan"
+        ></button>
+      </div>
+    </header>
+
+    <div class="preset-card">
+      <span id="preset-label" class="preset-label">Preset: Operator 1</span>
+      <div class="preset-counts">
+        <span id="running-count-chip" class="count-chip is-running">30 Running</span>
+        <span id="standby-count-chip" class="count-chip is-standby">0 Standby</span>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label for="schedule-filter" class="field-label">Filter Jadwal / Shift</label>
+      <select id="schedule-filter" class="control-select">
+        <option value="all">Semua Jadwal</option>
+        <option value="pagi">Pagi</option>
+        <option value="sore">Sore</option>
+        <option value="malam">Malam</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
+    </div>
+
+    <div class="action-grid">
+      <button id="dry-run-btn" type="button" class="btn btn-dry"></button>
+      <button id="execute-btn" type="button" class="btn btn-primary"></button>
+    </div>
+
+    <section class="summary-box" aria-label="Ringkasan Eksekusi">
+      <div id="summary-status" class="summary-status">
+        Siap memindai tabel checklist pada tab aktif.
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-name">Total Discan</span>
+          <span id="stat-scanned" class="stat-val">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-name">Cocok</span>
+          <span id="stat-matched" class="stat-val">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-name">Baru Dicentang</span>
+          <span id="stat-checked" class="stat-val">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-name">Sudah Tercentang</span>
+          <span id="stat-already" class="stat-val">0</span>
+        </div>
+        <div class="stat-item is-wide">
+          <span class="stat-name">Dilewati Aturan Pengecualian</span>
+          <span id="stat-skipped" class="stat-val">0</span>
+        </div>
+      </div>
+    </section>
+
+    <footer class="app-footer">© 2026 — Developed by FIKRI</footer>
+  </div>
+
+  <script src="./icons.js"></script>
+  <script src="./storage.js"></script>
+  <script src="./popup.js"></script>
+</body>
+</html>
