@@ -1,21 +1,15 @@
-TPM Smart Checklist v1.2.0
+TPM Smart Checklist v1.3.0
 ==========================
 
 Ekstensi Chrome Manifest V3 untuk otomasi checklist DILOC pada Operator 1, Operator 2, dan Operator 3 (berbasis Vue.js).
 
 Fitur Utama:
-- Database Equipment Modular (`equipment-db.js`) untuk 56 unit:
-  - Operator 1 — LAPANGAN 1 (GROUND): 30 tag equipment default
-  - Operator 2 — LAPANGAN 2: 9 tag equipment default
-  - Operator 3 — Lapangan 3: 17 tag equipment default
-- Auto-Detect Shift Sesuai Jam (07:00–14:59 Morning, 15:00–22:59 Afternoon, 23:00–06:59 Night) di Popup.
-- Auto-Tampilkan Semua Baris (300+) otomatis mengubah dropdown jumlah entri tabel sebelum pemindaian.
-- Aturan pengecualian tugas kondisional global:
-  - Skip saat RUNNING: "Putar poros"
-  - Skip saat STANDBY: "Kelainan suara"
-- Filter shift DILOC (Semua Jadwal, Morning Shift, Afternoon Shift, Night Shift, Every Shift, Weekly, Optional) + opsi "Sertakan task Every Shift".
-- Quick-Swap A↔B 1 klik di halaman Options untuk menukar status RUNNING/STANDBY pasangan unit.
-- Mode Dry Run (sorotan kuning + gulir otomatis) & Execute aman (target ketat input[id^="is_executed_"], mengabaikan need_maintenance_).
+- Engine Toggle 3-State DILOC (`Unset` → `Executed` → `Not Executed`) secara idempoten dengan deteksi status via class/label dan jeda klik aman untuk reaktivitas Vue.js.
+- Dry Run Berkode Warna: sorotan hijau untuk target `Executed` dan oranye untuk target `Not Executed` beserta badge pratinjau.
+- Tombol Quick-Swap `Swap A↔B` di sisi kiri daftar equipment untuk menukar status duty/standby dengan pergerakan kursor minimal.
+- Database Equipment Modular (`equipment-db.js`) untuk 56 unit Operator 1–3.
+- Auto-Detect Shift Sesuai Jam dan Auto-Tampilkan Semua Baris (300+) sebelum pemindaian.
+- Aturan pengecualian tugas kondisional global (`Putar poros` saat `RUNNING`, `Kelainan suara` saat `STANDBY`).
 
 Cara Pasang (Load Unpacked):
 1. Buka chrome://extensions dan aktifkan Developer mode.

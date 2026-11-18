@@ -37,6 +37,7 @@
     if (!firstCell) return '';
     const texts = [];
     for (const child of firstCell.children) {
+      if (child.getAttribute('data-scr-preview-badge') === 'true') continue;
       const t = (child.textContent || '').trim();
       if (t) texts.push(t);
     }
@@ -94,6 +95,49 @@
       if (lowerTask.includes(kw)) return kw;
     }
     return null;
+  }
+
+  function getCheckboxState(row, checkbox) {
+    if (!checkbox) return 'UNSET';
+
+    if (checkbox.classList.contains('bg-success')) return 'EXECUTED';
+    if (checkbox.classList.contains('bg-danger')) return 'NOT_EXECUTED';
+    if (checkbox.classList.contains('bg-dark')) return 'UNSET';
+
+    const id = checkbox.getAttribute('id');
+    let labelEl = null;
+    if (id && row) {
+      labelEl = row.querySelector('label[for="' + CSS.escape(id) + '"]');
+    }
+    if (!labelEl && id) {
+      labelEl = document.querySelector('label[for="' + CSS.escape(id) + '"]');
+    }
+    if (!labelEl && checkbox.parentElement) {
+      labelEl = checkbox.parentElement.querySelector('label');
+    }
+
+    if (labelEl) {
+      const span = labelEl.querySelector('span');
+      const rawText = (span ? span.textContent : labelEl.textContent || '').trim().toLowerCase();
+      if (rawText === 'executed') return 'EXECUTED';
+      if (rawText === 'not executed') return 'NOT_EXECUTED';
+      if (rawText === 'unset') return 'UNSET';
+    }
+
+    return checkbox.checked ? 'EXECUTED' : 'UNSET';
+  }
+
+  function calculateClicksNeeded(currentState, targetState) {
+    if (currentState === targetState) return 0;
+    if (targetState === 'EXECUTED') {
+      if (currentState === 'UNSET') return 1;
+      if (currentState === 'NOT_EXECUTED') return 2;
+    }
+    if (targetState === 'NOT_EXECUTED') {
+      if (currentState === 'UNSET') return 2;
+      if (currentState === 'EXECUTED') return 1;
+    }
+    return 0;
   }
 
   function scoreLengthOption(opt) {
@@ -178,32 +222,96 @@
   }
 
   function clearDryRunHighlights() {
+    const badges = document.querySelectorAll('[data-scr-preview-badge="true"]');
+    for (const badge of badges) {
+      badge.remove();
+    }
+
     const highlighted = document.querySelectorAll('tr[data-task-id][data-scr-dryrun="true"]');
     for (const row of highlighted) {
       row.removeAttribute('data-scr-dryrun');
       row.style.outline = row.dataset.scrPrevOutline || '';
       row.style.outlineOffset = row.dataset.scrPrevOutlineOffset || '';
       row.style.backgroundColor = row.dataset.scrPrevBg || '';
+      row.style.color = row.dataset.scrPrevColor || '';
       delete row.dataset.scrPrevOutline;
       delete row.dataset.scrPrevOutlineOffset;
       delete row.dataset.scrPrevBg;
+      delete row.dataset.scrPrevColor;
+
+      const mutedEls = row.querySelectorAll('[data-scr-prev-color]');
+      for (const el of mutedEls) {
+        el.style.color = el.dataset.scrPrevColor || '';
+        delete el.dataset.scrPrevColor;
+      }
     }
   }
 
-  function applyDryRunHighlight(row) {
+  function applyDryRunHighlight(row, targetState) {
     if (row.getAttribute('data-scr-dryrun') !== 'true') {
       row.dataset.scrPrevOutline = row.style.outline || '';
       row.dataset.scrPrevOutlineOffset = row.style.outlineOffset || '';
       row.dataset.scrPrevBg = row.style.backgroundColor || '';
+      row.dataset.scrPrevColor = row.style.color || '';
     }
+
+    const isNotExec = targetState === 'NOT_EXECUTED';
     row.setAttribute('data-scr-dryrun', 'true');
-    row.style.outline = '2px solid #eab308';
+    row.style.outline = isNotExec ? '2px solid #f97316' : '2px solid #22c55e';
     row.style.outlineOffset = '-2px';
-    row.style.backgroundColor = 'rgba(250, 204, 21, 0.18)';
+    row.style.backgroundColor = isNotExec ? '#ffedd5' : '#dcfce7';
+    row.style.color = '#0f172a';
+
+    const textEls = row.querySelectorAll('.fw-bold, .small.text-muted, td');
+    for (const el of textEls) {
+      if (!Object.prototype.hasOwnProperty.call(el.dataset, 'scrPrevColor')) {
+        el.dataset.scrPrevColor = el.style.color || '';
+      }
+      el.style.color = el.classList.contains('text-muted') ? '#334155' : '#0f172a';
+    }
+
+    const taskCell = row.querySelector('td.task-column') || row.querySelector('td:nth-child(1)');
+    if (taskCell) {
+      const badge = document.createElement('span');
+      badge.setAttribute('data-scr-preview-badge', 'true');
+      badge.textContent = isNotExec ? 'Dry Run → Not Executed' : 'Dry Run → Executed';
+      badge.style.display = 'inline-block';
+      badge.style.marginTop = '4px';
+      badge.style.padding = '2px 7px';
+      badge.style.borderRadius = '4px';
+      badge.style.fontSize = '10.5px';
+      badge.style.fontWeight = '700';
+      badge.style.letterSpacing = '0.02em';
+      badge.style.backgroundColor = isNotExec ? '#fed7aa' : '#bbf7d0';
+      badge.style.color = isNotExec ? '#9a3412' : '#166534';
+      badge.style.border = isNotExec ? '1px solid #fb923c' : '1px solid #4ade80';
+      taskCell.appendChild(badge);
+    }
   }
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function transitionCheckbox(row, checkbox, currentState, targetState) {
+    const clicksNeeded = calculateClicksNeeded(currentState, targetState);
+    if (clicksNeeded === 0) return false;
+
+    checkbox.click();
+
+    if (clicksNeeded === 2) {
+      await sleep(100);
+      let midState = getCheckboxState(row, checkbox);
+      if (midState === currentState) {
+        await sleep(60);
+        midState = getCheckboxState(row, checkbox);
+      }
+      if (midState !== targetState) {
+        checkbox.click();
+      }
+    }
+
+    return true;
   }
 
   async function runChecklist(options) {
@@ -236,13 +344,11 @@
       }
 
       const rows = Array.from(document.querySelectorAll('tr[data-task-id]'));
-      let totalScanned = rows.length;
-      let matchedCount = 0;
-      let newlyChecked = 0;
-      let alreadyChecked = 0;
-      let skippedByRule = 0;
-      let skippedBySchedule = 0;
-      let skippedByEquipment = 0;
+      const totalScanned = rows.length;
+      let setToExecuted = 0;
+      let setToNotExecuted = 0;
+      let alreadySet = 0;
+      let untouchedCount = 0;
       let firstMatchedRow = null;
 
       for (const row of rows) {
@@ -252,50 +358,55 @@
         const badgeText = extractBadgeText(firstCell);
 
         if (!matchesSchedule(taskId, badgeText, scheduleFilter, includeEveryShift)) {
-          skippedBySchedule++;
+          untouchedCount++;
           continue;
         }
 
         const equipState = tag ? equipmentMap[tag] : null;
         if (equipState !== 'RUNNING' && equipState !== 'STANDBY') {
-          skippedByEquipment++;
+          // IGNORE or unlisted in active operator preset -> leave untouched
+          untouchedCount++;
+          continue;
+        }
+
+        // Strict Checkbox Boundary: ONLY input[type="checkbox"][id^="is_executed_"]
+        const checkbox = row.querySelector('input[type="checkbox"][id^="is_executed_"]');
+        if (!checkbox || checkbox.disabled) {
+          untouchedCount++;
           continue;
         }
 
         const taskText = extractTaskText(row);
         const activeExclusions = equipState === 'RUNNING' ? runningExclusions : standbyExclusions;
         const hitKeyword = findMatchedKeyword(taskText, activeExclusions);
+        const targetState = hitKeyword ? 'NOT_EXECUTED' : 'EXECUTED';
 
-        if (hitKeyword) {
-          skippedByRule++;
+        const currentState = getCheckboxState(row, checkbox);
+        const clicksNeeded = calculateClicksNeeded(currentState, targetState);
+
+        if (clicksNeeded === 0) {
+          alreadySet++;
           continue;
         }
 
-        // Strict Checkbox Boundary: ONLY input[type="checkbox"][id^="is_executed_"]
-        const checkbox = row.querySelector('input[type="checkbox"][id^="is_executed_"]');
-        if (!checkbox) {
-          continue;
-        }
-
-        if (checkbox.checked) {
-          alreadyChecked++;
-          continue;
-        }
-
-        if (checkbox.disabled) {
-          continue;
-        }
-
-        matchedCount++;
         if (!firstMatchedRow) {
           firstMatchedRow = row;
         }
 
         if (dryRun) {
-          applyDryRunHighlight(row);
+          applyDryRunHighlight(row, targetState);
+          if (targetState === 'EXECUTED') {
+            setToExecuted++;
+          } else {
+            setToNotExecuted++;
+          }
         } else {
-          checkbox.click();
-          newlyChecked++;
+          await transitionCheckbox(row, checkbox, currentState, targetState);
+          if (targetState === 'EXECUTED') {
+            setToExecuted++;
+          } else {
+            setToNotExecuted++;
+          }
           if (delayMs > 0) {
             await sleep(delayMs);
           }
@@ -314,12 +425,10 @@
         expandedRows: paginationInfo.expanded,
         expandedTo: paginationInfo.expandedTo,
         totalScanned: totalScanned,
-        matchedCount: matchedCount,
-        newlyChecked: newlyChecked,
-        alreadyChecked: alreadyChecked,
-        skippedByRule: skippedByRule,
-        skippedBySchedule: skippedBySchedule,
-        skippedByEquipment: skippedByEquipment
+        setToExecuted: setToExecuted,
+        setToNotExecuted: setToNotExecuted,
+        alreadySet: alreadySet,
+        untouchedCount: untouchedCount
       };
     } finally {
       window.__SCR_IS_RUNNING__ = false;

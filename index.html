@@ -547,15 +547,80 @@
     }
 
     .col-check {
-      width: 96px;
+      width: 138px;
       text-align: center;
     }
 
-    .vue-checkbox {
+    .col-check:last-child {
+      width: 72px;
+    }
+
+    .form-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-align: left;
+    }
+
+    .form-check-input {
+      appearance: none;
+      -webkit-appearance: none;
       width: 16px;
       height: 16px;
-      accent-color: var(--accent);
+      margin: 0;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
       cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+      transition: background-color 120ms ease, border-color 120ms ease;
+    }
+
+    .form-check-input.bg-dark {
+      background-color: #334155;
+      border-color: #475569;
+    }
+
+    .form-check-input.bg-success {
+      background-color: #16a34a;
+      border-color: #22c55e;
+    }
+
+    .form-check-input.bg-success::after {
+      content: '✓';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .form-check-input.bg-danger {
+      background-color: #dc2626;
+      border-color: #ef4444;
+    }
+
+    .form-check-input.bg-danger::after {
+      content: '✕';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .form-check-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
     }
 
     .vue-switch {
@@ -1058,7 +1123,7 @@
           subtitle: '• Cek level oli pada sight glass',
           execId: 'is_executed_1537',
           maintId: 'need_maintenance_1537',
-          executed: false,
+          execState: 'UNSET',
           needMaintenance: false
         },
         {
@@ -1069,7 +1134,7 @@
           subtitle: '• Putar poros pompa secara manual saat standby',
           execId: 'is_executed_1538',
           maintId: 'need_maintenance_1538',
-          executed: false,
+          execState: 'UNSET',
           needMaintenance: false
         },
         {
@@ -1080,7 +1145,7 @@
           subtitle: '• Dengarkan vibrasi dan kelainan suara bearing',
           execId: 'is_executed_1539',
           maintId: 'need_maintenance_1539',
-          executed: false,
+          execState: 'UNSET',
           needMaintenance: true
         },
         {
@@ -1091,7 +1156,7 @@
           subtitle: '• Pastikan tidak ada rembesan fluida',
           execId: 'is_executed_1540',
           maintId: 'need_maintenance_1540',
-          executed: true,
+          execState: 'EXECUTED',
           needMaintenance: false
         },
         {
@@ -1102,7 +1167,7 @@
           subtitle: '• Ukur temperatur rumah bearing DE/NDE (Op 2)',
           execId: 'is_executed_2101',
           maintId: 'need_maintenance_2101',
-          executed: false,
+          execState: 'UNSET',
           needMaintenance: false
         },
         {
@@ -1113,7 +1178,7 @@
           subtitle: '• Putar poros pompa secara manual saat standby (Op 2)',
           execId: 'is_executed_2102',
           maintId: 'need_maintenance_2102',
-          executed: false,
+          execState: 'UNSET',
           needMaintenance: false
         },
         {
@@ -1124,7 +1189,7 @@
           subtitle: '• Periksa tegangan belt dan suara abnormal (Op 3)',
           execId: 'is_executed_3201',
           maintId: 'need_maintenance_3201',
-          executed: false,
+          execState: 'UNSET',
           needMaintenance: false
         },
         {
@@ -1135,7 +1200,7 @@
           subtitle: '• Pengecekan opsional kebisingan casing (Op 3)',
           execId: 'is_executed_3202',
           maintId: 'need_maintenance_3202',
-          executed: false,
+          execState: 'UNSET',
           needMaintenance: false
         }
       ];
@@ -1305,6 +1370,12 @@
         }).join('');
       }
 
+      const EXEC_STATE_META = {
+        UNSET: { cls: 'bg-dark', label: 'Unset', checked: false, next: 'EXECUTED' },
+        EXECUTED: { cls: 'bg-success', label: 'Executed', checked: true, next: 'NOT_EXECUTED' },
+        NOT_EXECUTED: { cls: 'bg-danger', label: 'Not Executed', checked: false, next: 'UNSET' }
+      };
+
       // Mock Vue.js Table Rendering & Message Interaction
       function renderTargetTable() {
         const limitVal = elMockEntriesSelect ? elMockEntriesSelect.value : '300';
@@ -1317,6 +1388,7 @@
           const badgesHtml = row.badges
             .map((b) => '<span class="vue-badge ' + escapeHtml(b.cls) + '">' + escapeHtml(b.label) + '</span>')
             .join('');
+          const meta = EXEC_STATE_META[row.execState] || EXEC_STATE_META.UNSET;
           return (
             '<tr data-task-id="' + escapeHtml(row.taskId) + '">' +
               '<td>' + escapeHtml(row.tag) + badgesHtml + '</td>' +
@@ -1325,7 +1397,10 @@
                 '<div class="small text-muted">' + escapeHtml(row.subtitle) + '</div>' +
               '</td>' +
               '<td class="col-check">' +
-                '<input type="checkbox" class="vue-checkbox" id="' + escapeHtml(row.execId) + '"' + (row.executed ? ' checked' : '') + ' aria-label="Executed ' + escapeHtml(row.tag) + '" />' +
+                '<div class="form-check">' +
+                  '<input type="checkbox" class="form-check-input ' + meta.cls + '" id="' + escapeHtml(row.execId) + '"' + (meta.checked ? ' checked' : '') + ' aria-label="Executed ' + escapeHtml(row.tag) + '" />' +
+                  '<label class="form-check-label" for="' + escapeHtml(row.execId) + '"><span>' + meta.label + '</span></label>' +
+                '</div>' +
               '</td>' +
               '<td class="col-check">' +
                 '<input type="checkbox" class="vue-switch" id="' + escapeHtml(row.maintId) + '"' + (row.needMaintenance ? ' checked' : '') + ' aria-label="Need Maintenance ' + escapeHtml(row.tag) + '" />' +
@@ -1953,13 +2028,33 @@
         loadExtensionFileIntoIframe(elOptionsFrame, elOptionsError, elOptionsErrorText, state.folder, 'options.html', 'options');
       });
 
+      elTargetTbody.addEventListener('click', function (e) {
+        const input = e.target && e.target.closest ? e.target.closest('input[id^="is_executed_"]') : null;
+        if (!input || input.type !== 'checkbox') return;
+        const row = state.targetRows.find((r) => r.execId === input.id);
+        if (!row) return;
+
+        const currentMeta = EXEC_STATE_META[row.execState] || EXEC_STATE_META.UNSET;
+        const nextState = currentMeta.next;
+        const nextMeta = EXEC_STATE_META[nextState];
+        row.execState = nextState;
+
+        input.classList.remove('bg-dark', 'bg-success', 'bg-danger');
+        input.classList.add(nextMeta.cls);
+        input.checked = nextMeta.checked;
+
+        const labelSpan = input.parentElement && input.parentElement.querySelector('label span');
+        if (labelSpan) {
+          labelSpan.textContent = nextMeta.label;
+        }
+      });
+
       elTargetTbody.addEventListener('change', function (e) {
         const input = e.target;
         if (!input || input.type !== 'checkbox') return;
-        const row = state.targetRows.find((r) => r.execId === input.id || r.maintId === input.id);
+        const row = state.targetRows.find((r) => r.maintId === input.id);
         if (!row) return;
-        if (input.id === row.execId) row.executed = input.checked;
-        if (input.id === row.maintId) row.needMaintenance = input.checked;
+        row.needMaintenance = input.checked;
       });
 
       if (elMockEntriesSelect) {

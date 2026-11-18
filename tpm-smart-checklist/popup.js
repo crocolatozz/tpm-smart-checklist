@@ -17,10 +17,10 @@ const elExecuteBtn = document.getElementById('execute-btn');
 const elSummaryStatus = document.getElementById('summary-status');
 
 const elStatScanned = document.getElementById('stat-scanned');
-const elStatMatched = document.getElementById('stat-matched');
-const elStatChecked = document.getElementById('stat-checked');
+const elStatExecuted = document.getElementById('stat-executed');
+const elStatNotExecuted = document.getElementById('stat-not-executed');
 const elStatAlready = document.getElementById('stat-already');
-const elStatSkipped = document.getElementById('stat-skipped');
+const elStatUntouched = document.getElementById('stat-untouched');
 
 let currentSettings = Storage.createDefaultSettings();
 let isBusy = false;
@@ -81,10 +81,10 @@ function setStatus(text, tone) {
 
 function updateSummaryNumbers(res) {
   elStatScanned.textContent = String(res.totalScanned || 0);
-  elStatMatched.textContent = String(res.matchedCount || 0);
-  elStatChecked.textContent = String(res.newlyChecked || 0);
-  elStatAlready.textContent = String(res.alreadyChecked || 0);
-  elStatSkipped.textContent = String(res.skippedByRule || 0);
+  elStatExecuted.textContent = String(res.setToExecuted || 0);
+  elStatNotExecuted.textContent = String(res.setToNotExecuted || 0);
+  elStatAlready.textContent = String(res.alreadySet || 0);
+  elStatUntouched.textContent = String(res.untouchedCount || 0);
 }
 
 function setBusy(busy) {
@@ -213,14 +213,17 @@ async function triggerRun(isDryRun) {
       ? ' (tabel diperluas ke ' + response.expandedTo + ')'
       : '';
 
+    const execCount = response.setToExecuted || 0;
+    const notExecCount = response.setToNotExecuted || 0;
+
     if (isDryRun) {
       setStatus(
-        'Dry Run (' + preset.label + '): ' + response.matchedCount + ' baris siap dicentang' + expandedNote + '.',
+        'Dry Run (' + preset.label + '): ' + execCount + ' Executed, ' + notExecCount + ' Not Executed' + expandedNote + '.',
         'dry'
       );
     } else {
       setStatus(
-        'Execute (' + preset.label + '): ' + response.newlyChecked + ' item berhasil dicentang' + expandedNote + '.',
+        'Execute (' + preset.label + '): ' + execCount + ' Executed, ' + notExecCount + ' Not Executed' + expandedNote + '.',
         'success'
       );
     }
@@ -233,10 +236,10 @@ async function triggerRun(isDryRun) {
       scheduleFilter: scheduleFilter,
       includeEveryShift: includeEveryShift,
       totalScanned: response.totalScanned,
-      matchedCount: response.matchedCount,
-      newlyChecked: response.newlyChecked,
-      alreadyChecked: response.alreadyChecked,
-      skippedByRule: response.skippedByRule
+      setToExecuted: execCount,
+      setToNotExecuted: notExecCount,
+      alreadySet: response.alreadySet || 0,
+      untouchedCount: response.untouchedCount || 0
     });
   } catch (err) {
     setStatus(err && err.message ? err.message : 'Terjadi kesalahan saat eksekusi.', 'error');

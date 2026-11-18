@@ -2,6 +2,16 @@
 
 Semua perubahan penting pada **TPM Smart Checklist** dicatat dalam file ini.
 
+## [1.3.0] - 2026-11-18
+
+### Added
+- **DILOC 3-State Toggle Engine (`content.js`)**: Mendukung siklus status 3-tahap `Unset` (`bg-dark`) → `Executed` (`bg-success`) → `Not Executed` (`bg-danger`) secara idempoten dengan jeda pengaman `100ms` untuk klik ganda agar reaktivitas Vue.js stabil, sambil tetap mengabaikan `input[id^="need_maintenance_"]` dan tag `IGNORE`.
+- **Color-Coded Dry Run & 5 Counter Summary (`content.js`, `popup.html`, `popup.js`)**: Sorotan pratinjau hijau (`Dry Run → Executed`) dan oranye (`Dry Run → Not Executed`), ditambah 5 metrik ringkasan (`Total Discan`, `Set → Executed`, `Set → Not Executed`, `Sudah Sesuai`, `Tidak Tersentuh`).
+
+### Changed
+- **Relokasi Tombol Swap A↔B ke Sisi Kiri (`options.html`, `options.js`, `styles.css`)**: Tombol **Swap A↔B** pada daftar equipment berpasangan dipindahkan ke sisi kiri baris untuk meminimalkan pergerakan kursor operator.
+- Pembaruan versi ekstensi ke `v1.3.0` pada `manifest.json`, `popup.html`, `options.html`, dan `README.txt`.
+
 ## [1.2.0] - 2026-11-18
 
 ### Added

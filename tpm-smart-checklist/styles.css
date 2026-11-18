@@ -15,6 +15,7 @@
   --green-soft: rgba(22, 163, 74, 0.14);
   --amber: #d97706;
   --amber-soft: rgba(217, 119, 6, 0.14);
+  --orange: #ea580c;
   --neutral: #64748b;
   --neutral-soft: rgba(100, 116, 139, 0.14);
   --danger: #dc2626;
@@ -43,6 +44,7 @@
   --green-soft: rgba(34, 197, 94, 0.18);
   --amber: #f59e0b;
   --amber-soft: rgba(245, 158, 11, 0.18);
+  --orange: #fb923c;
   --neutral: #94a3b8;
   --neutral-soft: rgba(148, 163, 184, 0.16);
   --danger: #f87171;
@@ -173,7 +175,7 @@ textarea:focus-visible {
 /* ==================== POPUP LAYOUT (340px) ==================== */
 body.is-popup {
   width: 340px;
-  min-height: 490px;
+  min-height: 515px;
   background-color: var(--bg-page);
 }
 
@@ -449,6 +451,14 @@ body.is-popup {
   font-variant-numeric: tabular-nums;
 }
 
+.stat-val.is-exec {
+  color: var(--green);
+}
+
+.stat-val.is-not-exec {
+  color: var(--orange);
+}
+
 .app-footer {
   padding-top: 6px;
   border-top: 1px solid var(--border-color);
@@ -696,7 +706,7 @@ body.is-options {
 
 .equip-pair-group {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   border-bottom: 1px solid var(--border-color);
   background-color: var(--bg-surface);
 }
@@ -722,7 +732,7 @@ body.is-options {
   align-items: center;
   justify-content: center;
   padding: 8px 12px;
-  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
   background-color: var(--bg-subtle);
 }
 
@@ -760,6 +770,13 @@ body.is-options {
 
 .equip-row:last-child {
   border-bottom: none;
+}
+
+.equip-row-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .equip-tag {
@@ -974,8 +991,8 @@ body.is-options {
   }
 
   .equip-pair-swap-col {
-    border-left: none;
-    border-top: 1px solid var(--border-color);
-    justify-content: flex-end;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    justify-content: flex-start;
   }
 }

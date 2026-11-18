@@ -135,12 +135,8 @@ function buildSingleEquipRow(tag, state, inlinePartnerTag) {
   const row = document.createElement('div');
   row.className = 'equip-row';
 
-  const tagSpan = document.createElement('span');
-  tagSpan.className = 'equip-tag';
-  tagSpan.textContent = tag;
-
-  const right = document.createElement('div');
-  right.className = 'equip-row-right';
+  const left = document.createElement('div');
+  left.className = 'equip-row-left';
 
   if (inlinePartnerTag) {
     const swapBtn = document.createElement('button');
@@ -151,8 +147,16 @@ function buildSingleEquipRow(tag, state, inlinePartnerTag) {
     swapBtn.setAttribute('data-swap-b', inlinePartnerTag);
     swapBtn.appendChild(createSvgIcon('swap', 12));
     swapBtn.appendChild(document.createTextNode('Swap A↔B'));
-    right.appendChild(swapBtn);
+    left.appendChild(swapBtn);
   }
+
+  const tagSpan = document.createElement('span');
+  tagSpan.className = 'equip-tag';
+  tagSpan.textContent = tag;
+  left.appendChild(tagSpan);
+
+  const right = document.createElement('div');
+  right.className = 'equip-row-right';
 
   const seg = document.createElement('div');
   seg.className = 'seg-toggle';
@@ -176,7 +180,7 @@ function buildSingleEquipRow(tag, state, inlinePartnerTag) {
   }
 
   right.appendChild(seg);
-  row.appendChild(tagSpan);
+  row.appendChild(left);
   row.appendChild(right);
   return row;
 }
@@ -258,8 +262,8 @@ function renderEquipmentList() {
       swapBtn.appendChild(document.createTextNode('Swap A↔B'));
 
       swapCol.appendChild(swapBtn);
-      pairGroup.appendChild(pairRows);
       pairGroup.appendChild(swapCol);
+      pairGroup.appendChild(pairRows);
       fragment.appendChild(pairGroup);
     } else {
       renderedTags.add(tag);
@@ -328,12 +332,21 @@ function renderHistory() {
 
     const statsEl = document.createElement('div');
     statsEl.className = 'history-stats';
-    statsEl.textContent =
-      'Scan ' + (item.totalScanned || 0) +
-      ' · Cocok ' + (item.matchedCount || 0) +
-      ' · Baru ' + (item.newlyChecked || 0) +
-      ' · Sudah ' + (item.alreadyChecked || 0) +
-      ' · Lewat ' + (item.skippedByRule || 0);
+    if (Object.prototype.hasOwnProperty.call(item, 'setToExecuted')) {
+      statsEl.textContent =
+        'Scan ' + (item.totalScanned || 0) +
+        ' · Exec ' + (item.setToExecuted || 0) +
+        ' · NotExec ' + (item.setToNotExecuted || 0) +
+        ' · Sudah ' + (item.alreadySet || 0) +
+        ' · Lewat ' + (item.untouchedCount || 0);
+    } else {
+      statsEl.textContent =
+        'Scan ' + (item.totalScanned || 0) +
+        ' · Cocok ' + (item.matchedCount || 0) +
+        ' · Baru ' + (item.newlyChecked || 0) +
+        ' · Sudah ' + (item.alreadyChecked || 0) +
+        ' · Lewat ' + (item.skippedByRule || 0);
+    }
 
     row.appendChild(main);
     row.appendChild(statsEl);
