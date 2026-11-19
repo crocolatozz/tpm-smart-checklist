@@ -14,7 +14,7 @@
         <div class="brand-text-wrap">
           <h1 class="popup-title">TPM Smart Checklist</h1>
           <div class="brand-sub-row">
-            <span id="popup-version" class="version-pill">v1.5.0</span>
+            <span id="popup-version" class="version-pill">v2.0.0</span>
             <span id="popup-debug-badge" class="debug-badge is-hidden"></span>
           </div>
         </div>
@@ -38,14 +38,30 @@
       </div>
     </header>
 
-    <section class="operator-card" aria-label="Pilih Operator">
+    <!-- Active Page Context Card -->
+    <section id="context-card" class="context-card" aria-label="Konteks Halaman Aktif">
+      <div class="context-row">
+        <span class="context-key">Halaman Aktif</span>
+        <span id="ctx-page-badge" class="context-val-badge is-warn">Memeriksa...</span>
+      </div>
+      <div class="context-row">
+        <span class="context-key">Tanggal Aktif</span>
+        <span id="ctx-date-val" class="context-date-val">-</span>
+      </div>
+      <div id="execute-guard-hint" class="guard-hint is-hidden">
+        Buka halaman TPM Execution Operator 1, 2, atau 3 untuk menjalankan.
+      </div>
+    </section>
+
+    <!-- Manual Operator Selector (Debug Mode Only) -->
+    <section class="operator-card debug-only" aria-label="Pilih Operator Manual">
       <div class="operator-seg" role="tablist" aria-label="Preset Operator">
         <button type="button" role="tab" class="op-seg-btn is-active" data-operator="op1">Operator 1</button>
         <button type="button" role="tab" class="op-seg-btn" data-operator="op2">Operator 2</button>
         <button type="button" role="tab" class="op-seg-btn" data-operator="op3">Operator 3</button>
       </div>
 
-      <div class="preset-meta-row debug-only">
+      <div class="preset-meta-row">
         <span id="preset-operator-label" class="preset-area">Operator 1</span>
         <div class="preset-counts">
           <span id="running-count-chip" class="count-chip is-running">30 Running</span>

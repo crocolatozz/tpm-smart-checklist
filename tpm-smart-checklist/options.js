@@ -1,16 +1,25 @@
 import { createSvgIcon, hydrateIcons } from './icons.js';
 import { TPMStorage as Storage } from './storage.js';
-import { EQUIPMENT_DB } from './equipment-db.js';
+import { EQUIPMENT_DB, TASK_KEYWORD_TEMPLATES } from './equipment-db.js';
 
 const elVersion = document.getElementById('options-version');
 const elDebugBadge = document.getElementById('options-debug-badge');
 const elDebugToggle = document.getElementById('debug-mode-toggle');
 const elFooterVer = document.getElementById('options-footer-ver');
-const elSaveToast = document.getElementById('save-toast');
 const elThemeBtn = document.getElementById('options-theme-btn');
 
-const elSkipRunning = document.getElementById('skip-running-input');
-const elSkipStandby = document.getElementById('skip-standby-input');
+const elSkipRunningSelect = document.getElementById('skip-running-select');
+const elSkipRunningPills = document.getElementById('skip-running-pills');
+const elSkipStandbySelect = document.getElementById('skip-standby-select');
+const elSkipStandbyPills = document.getElementById('skip-standby-pills');
+
+const elDbStatusBadge = document.getElementById('db-status-badge');
+const elDbLastSyncText = document.getElementById('db-last-sync-text');
+const elDbAutoPullToggle = document.getElementById('db-auto-pull-toggle');
+const elDbUrlInput = document.getElementById('db-url-input');
+const elDbTokenInput = document.getElementById('db-token-input');
+const elDbPullBtn = document.getElementById('db-pull-btn');
+const elDbPushBtn = document.getElementById('db-push-btn');
 const elUrlPattern = document.getElementById('url-pattern-input');
 const elClickDelay = document.getElementById('click-delay-input');
 
@@ -23,7 +32,6 @@ const elSearchInput = document.getElementById('equip-search-input');
 const elScrapeBtn = document.getElementById('scrape-tab-btn');
 const elBulkPasteBtn = document.getElementById('bulk-paste-btn');
 const elResetDefaultBtn = document.getElementById('reset-default-btn');
-const elEquipStatusMsg = document.getElementById('equip-status-msg');
 const elEquipList = document.getElementById('equip-list');
 const elFilterPills = Array.from(document.querySelectorAll('.pill-btn[data-filter]'));
 
@@ -32,9 +40,6 @@ const elCountRunning = document.getElementById('count-running');
 const elCountStandby = document.getElementById('count-standby');
 const elCountIgnore = document.getElementById('count-ignore');
 
-const elExportBtn = document.getElementById('export-json-btn');
-const elImportBtn = document.getElementById('import-json-btn');
-const elImportFile = document.getElementById('import-file-input');
 const elClearHistoryBtn = document.getElementById('clear-history-btn');
 const elHistoryList = document.getElementById('history-list');
 
@@ -45,25 +50,52 @@ const elBulkCancelBtn = document.getElementById('bulk-cancel-btn');
 const elBulkApplyBtn = document.getElementById('bulk-apply-btn');
 const elBulkTextarea = document.getElementById('bulk-textarea');
 const elBulkDefaultState = document.getElementById('bulk-default-state');
+const elToastContainer = document.getElementById('toast-container');
 
 let currentSettings = Storage.createDefaultSettings();
 let selectedOpId = 'op1';
 let lastSyncedActiveOp = 'op1';
 let activeFilter = 'ALL';
-let toastTimer = null;
+let isSyncBusy = false;
 
-function showSavedToast(label) {
-  elSaveToast.textContent = label || 'Tersimpan';
-  elSaveToast.classList.add('is-visible');
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(function () {
-    elSaveToast.classList.remove('is-visible');
-  }, 1600);
-}
+function showToast(message, variant) {
+  const tone = ['success', 'info', 'warning', 'error'].includes(variant) ? variant : 'info';
+  const iconMap = {
+    success: 'check-circle',
+    info: 'info',
+    warning: 'alert-triangle',
+    error: 'alert-triangle'
+  };
 
-function showEquipNotice(text) {
-  elEquipStatusMsg.textContent = text;
-  elEquipStatusMsg.classList.remove('is-hidden');
+  const toast = document.createElement('div');
+  toast.className = 'pmr-toast is-' + tone;
+  toast.setAttribute('role', 'status');
+
+  const iconWrap = document.createElement('span');
+  iconWrap.className = 'pmr-toast-icon';
+  iconWrap.appendChild(createSvgIcon(iconMap[tone] || 'info', 15));
+
+  const textWrap = document.createElement('span');
+  textWrap.textContent = message;
+
+  toast.appendChild(iconWrap);
+  toast.appendChild(textWrap);
+  elToastContainer.appendChild(toast);
+
+  while (elToastContainer.children.length > 4) {
+    elToastContainer.firstElementChild.remove();
+  }
+
+  requestAnimationFrame(function () {
+    toast.classList.add('is-visible');
+  });
+
+  setTimeout(function () {
+    toast.classList.remove('is-visible');
+    setTimeout(function () {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 200);
+  }, 2600);
 }
 
 function renderThemeButton(theme) {
@@ -78,12 +110,103 @@ function renderStaticIcons() {
   hydrateIcons(document);
   elDebugBadge.replaceChildren(createSvgIcon('bug', 11), document.createTextNode('DEBUG'));
   elScrapeBtn.replaceChildren(createSvgIcon('scan', 14), document.createTextNode('Ambil Tag dari Tab Aktif'));
-  elBulkPasteBtn.replaceChildren(createSvgIcon('plus', 14), document.createTextNode('+ Bulk Paste Tag'));
+  elBulkPasteBtn.replaceChildren(createSvgIcon('plus', 14), document.createTextNode('Bulk Paste Tag'));
   elResetDefaultBtn.replaceChildren(createSvgIcon('rotate-ccw', 14), document.createTextNode('Reset Default Operator Ini'));
-  elExportBtn.replaceChildren(createSvgIcon('download', 14), document.createTextNode('Export JSON'));
-  elImportBtn.replaceChildren(createSvgIcon('upload', 14), document.createTextNode('Import JSON'));
+  elDbPullBtn.replaceChildren(createSvgIcon('cloud-download', 14), document.createTextNode('Pull dari DB'));
+  elDbPushBtn.replaceChildren(createSvgIcon('cloud-upload', 14), document.createTextNode('Push ke DB'));
   elClearHistoryBtn.replaceChildren(createSvgIcon('trash', 13), document.createTextNode('Bersihkan Riwayat'));
   elBulkCloseBtn.replaceChildren(createSvgIcon('x', 15));
+}
+
+function renderKeywordControl(selectEl, pillBoxEl, selectedKeywords, groupKey) {
+  const selectedList = Array.isArray(selectedKeywords) ? selectedKeywords : [];
+  const selectedLower = new Set(selectedList.map((k) => k.toLowerCase()));
+
+  const optionPool = [];
+  const seenOption = new Set();
+  for (const tpl of TASK_KEYWORD_TEMPLATES) {
+    const lower = tpl.toLowerCase();
+    if (seenOption.has(lower)) continue;
+    seenOption.add(lower);
+    optionPool.push(tpl);
+  }
+  for (const existing of selectedList) {
+    const lower = existing.toLowerCase();
+    if (seenOption.has(lower)) continue;
+    seenOption.add(lower);
+    optionPool.push(existing);
+  }
+
+  selectEl.replaceChildren();
+  const placeholderOpt = document.createElement('option');
+  placeholderOpt.value = '';
+  placeholderOpt.textContent = '+ Pilih kata kunci tugas...';
+  selectEl.appendChild(placeholderOpt);
+
+  for (const item of optionPool) {
+    const opt = document.createElement('option');
+    opt.value = item;
+    const isChosen = selectedLower.has(item.toLowerCase());
+    opt.disabled = isChosen;
+    opt.textContent = isChosen ? item + ' (Dipilih)' : item;
+    selectEl.appendChild(opt);
+  }
+  selectEl.value = '';
+
+  pillBoxEl.replaceChildren();
+  if (selectedList.length === 0) {
+    const empty = document.createElement('span');
+    empty.className = 'pill-box-empty';
+    empty.textContent = 'Belum ada kata kunci dipilih.';
+    pillBoxEl.appendChild(empty);
+    return;
+  }
+
+  for (const kw of selectedList) {
+    const pill = document.createElement('span');
+    pill.className = 'kw-pill';
+
+    const label = document.createElement('span');
+    label.textContent = kw;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'kw-pill-remove';
+    removeBtn.setAttribute('aria-label', 'Hapus kata kunci ' + kw);
+    removeBtn.setAttribute('data-kw-group', groupKey);
+    removeBtn.setAttribute('data-kw-value', kw);
+    removeBtn.appendChild(createSvgIcon('x', 11));
+
+    pill.appendChild(label);
+    pill.appendChild(removeBtn);
+    pillBoxEl.appendChild(pill);
+  }
+}
+
+function renderSyncSection(settings) {
+  if (document.activeElement !== elDbUrlInput) {
+    elDbUrlInput.value = settings.dbWebAppUrl || '';
+  }
+  if (document.activeElement !== elDbTokenInput) {
+    elDbTokenInput.value = settings.dbSecretToken || '';
+  }
+  elDbAutoPullToggle.checked = Boolean(settings.dbAutoPull);
+
+  elDbStatusBadge.classList.remove('is-synced', 'is-offline', 'is-error');
+  if (settings.dbSyncStatus === 'synced') {
+    elDbStatusBadge.classList.add('is-synced');
+    elDbStatusBadge.textContent = 'Terhubung · Synced';
+  } else if (settings.dbSyncStatus === 'error') {
+    elDbStatusBadge.classList.add('is-error');
+    elDbStatusBadge.textContent = 'Gagal Sync (Cache Lokal Aktif)';
+  } else {
+    elDbStatusBadge.classList.add('is-offline');
+    elDbStatusBadge.textContent = 'Offline Cache';
+  }
+
+  elDbLastSyncText.textContent = settings.dbLastSyncAt
+    ? 'Sinkron terakhir: ' + formatTimestamp(settings.dbLastSyncAt)
+    : 'Belum pernah sinkronisasi';
 }
 
 function parsePairInfo(tag) {
@@ -138,11 +261,11 @@ function createCompactSwapButton(tagA, tagB) {
   const swapBtn = document.createElement('button');
   swapBtn.type = 'button';
   swapBtn.className = 'btn-swap-icon';
-  swapBtn.title = 'Swap A ↔ B (' + tagA + ' ↔ ' + tagB + ')';
-  swapBtn.setAttribute('aria-label', 'Swap ' + tagA + ' dan ' + tagB);
+  swapBtn.title = 'Tukar status pasangan atas-bawah (' + tagA + ' / ' + tagB + ')';
+  swapBtn.setAttribute('aria-label', 'Tukar status ' + tagA + ' dan ' + tagB);
   swapBtn.setAttribute('data-swap-a', tagA);
   swapBtn.setAttribute('data-swap-b', tagB);
-  swapBtn.appendChild(createSvgIcon('swap', 14));
+  swapBtn.appendChild(createSvgIcon('swap-vertical', 14));
   return swapBtn;
 }
 
@@ -375,12 +498,10 @@ function renderAll(settings) {
   elDebugBadge.classList.toggle('is-hidden', !isDebug);
   renderThemeButton(settings.theme);
 
-  if (document.activeElement !== elSkipRunning) {
-    elSkipRunning.value = settings.skipRunningKeywords;
-  }
-  if (document.activeElement !== elSkipStandby) {
-    elSkipStandby.value = settings.skipStandbyKeywords;
-  }
+  renderKeywordControl(elSkipRunningSelect, elSkipRunningPills, settings.skipRunningKeywords, 'running');
+  renderKeywordControl(elSkipStandbySelect, elSkipStandbyPills, settings.skipStandbyKeywords, 'standby');
+  renderSyncSection(settings);
+
   if (document.activeElement !== elUrlPattern) {
     elUrlPattern.value = settings.targetUrlPattern;
   }
@@ -455,6 +576,83 @@ function closeBulkModal() {
   elBulkModal.classList.add('is-hidden');
 }
 
+function setDbSyncBusy(busy) {
+  isSyncBusy = busy;
+  elDbPullBtn.disabled = busy;
+  elDbPushBtn.disabled = busy;
+}
+
+async function handlePullFromDb(isSilentAuto) {
+  if (isSyncBusy) return;
+  setDbSyncBusy(true);
+  try {
+    const updated = await Storage.pullFromCentralDb({
+      dbWebAppUrl: elDbUrlInput.value.trim(),
+      dbSecretToken: elDbTokenInput.value.trim()
+    });
+    renderAll(updated);
+    showToast(
+      isSilentAuto ? 'Auto-Pull Google Sheets berhasil.' : 'Data berhasil ditarik dari Google Sheets.',
+      'success'
+    );
+  } catch (err) {
+    const refreshed = await Storage.getSettings();
+    renderAll(refreshed);
+    showToast(
+      err && err.message ? err.message : 'Gagal menarik data dari Google Sheets.',
+      isSilentAuto ? 'warning' : 'error'
+    );
+  } finally {
+    setDbSyncBusy(false);
+  }
+}
+
+async function handlePushToDb() {
+  if (isSyncBusy) return;
+  setDbSyncBusy(true);
+  try {
+    const updated = await Storage.pushToCentralDb({
+      dbWebAppUrl: elDbUrlInput.value.trim(),
+      dbSecretToken: elDbTokenInput.value.trim()
+    });
+    renderAll(updated);
+    showToast('Master unit & kata kunci berhasil dikirim ke Google Sheets.', 'success');
+  } catch (err) {
+    const refreshed = await Storage.getSettings();
+    renderAll(refreshed);
+    showToast(
+      err && err.message ? err.message : 'Gagal mengirim data ke Google Sheets.',
+      'error'
+    );
+  } finally {
+    setDbSyncBusy(false);
+  }
+}
+
+async function addKeywordToGroup(groupKey, value) {
+  const clean = String(value || '').trim();
+  if (!clean) return;
+  const field = groupKey === 'running' ? 'skipRunningKeywords' : 'skipStandbyKeywords';
+  const list = Array.isArray(currentSettings[field]) ? currentSettings[field].slice() : [];
+  if (list.some((k) => k.toLowerCase() === clean.toLowerCase())) {
+    showToast('Kata kunci "' + clean + '" sudah ada.', 'warning');
+    return;
+  }
+  list.push(clean);
+  const updated = await Storage.saveSettings({ [field]: list });
+  renderAll(updated);
+  showToast('Kata kunci "' + clean + '" ditambahkan.', 'success');
+}
+
+async function removeKeywordFromGroup(groupKey, value) {
+  const field = groupKey === 'running' ? 'skipRunningKeywords' : 'skipStandbyKeywords';
+  const list = Array.isArray(currentSettings[field]) ? currentSettings[field] : [];
+  const nextList = list.filter((k) => k.toLowerCase() !== String(value || '').toLowerCase());
+  const updated = await Storage.saveSettings({ [field]: nextList });
+  renderAll(updated);
+  showToast('Kata kunci "' + value + '" dihapus.', 'info');
+}
+
 async function init() {
   renderStaticIcons();
 
@@ -474,6 +672,10 @@ async function init() {
   selectedOpId = Storage.VALID_OPERATOR_IDS.includes(queryOp) ? queryOp : lastSyncedActiveOp;
   renderAll(initial);
 
+  if (initial.dbAutoPull && initial.dbWebAppUrl && initial.dbSecretToken) {
+    handlePullFromDb(true);
+  }
+
   Storage.onChanged(function (updated) {
     if (updated && updated.activeOperator && updated.activeOperator !== lastSyncedActiveOp) {
       lastSyncedActiveOp = updated.activeOperator;
@@ -487,7 +689,6 @@ async function init() {
       if (msg && msg.action === 'SCR_OPEN_OPERATOR_TAB' && Storage.VALID_OPERATOR_IDS.includes(msg.operatorId)) {
         selectedOpId = msg.operatorId;
         lastSyncedActiveOp = msg.operatorId;
-        elEquipStatusMsg.classList.add('is-hidden');
         renderEquipmentList();
       }
     });
@@ -496,7 +697,6 @@ async function init() {
   for (const tabBtn of elOpTabs) {
     tabBtn.addEventListener('click', function () {
       selectedOpId = tabBtn.getAttribute('data-op-tab') || 'op1';
-      elEquipStatusMsg.classList.add('is-hidden');
       renderEquipmentList();
     });
   }
@@ -505,36 +705,72 @@ async function init() {
     const nextDebug = Boolean(elDebugToggle.checked);
     const updated = await Storage.saveSettings({ debugMode: nextDebug });
     renderAll(updated);
-    showSavedToast(nextDebug ? 'Debug Mode ON' : 'Debug Mode OFF');
+    showToast(nextDebug ? 'Debug Mode diaktifkan.' : 'Debug Mode dimatikan (Mode Operasional).', 'info');
   });
 
   elThemeBtn.addEventListener('click', async function () {
     const nextTheme = currentSettings.theme === 'dark' ? 'light' : 'dark';
     const updated = await Storage.saveSettings({ theme: nextTheme });
     renderAll(updated);
-    showSavedToast('Tema diperbarui');
+    showToast('Tema diubah ke ' + (nextTheme === 'dark' ? 'Dark Mode' : 'Light Mode') + '.', 'info');
   });
 
-  let textSaveTimer = null;
+  elSkipRunningSelect.addEventListener('change', function () {
+    if (!elSkipRunningSelect.value) return;
+    addKeywordToGroup('running', elSkipRunningSelect.value);
+  });
+
+  elSkipStandbySelect.addEventListener('change', function () {
+    if (!elSkipStandbySelect.value) return;
+    addKeywordToGroup('standby', elSkipStandbySelect.value);
+  });
+
+  document.addEventListener('click', function (e) {
+    const removeBtn = e.target.closest('button.kw-pill-remove[data-kw-group][data-kw-value]');
+    if (!removeBtn) return;
+    removeKeywordFromGroup(
+      removeBtn.getAttribute('data-kw-group'),
+      removeBtn.getAttribute('data-kw-value')
+    );
+  });
+
+  let fieldSaveTimer = null;
   function scheduleFieldSave() {
-    if (textSaveTimer) clearTimeout(textSaveTimer);
-    textSaveTimer = setTimeout(async function () {
+    if (fieldSaveTimer) clearTimeout(fieldSaveTimer);
+    fieldSaveTimer = setTimeout(async function () {
       const delayVal = Number(elClickDelay.value);
       const updated = await Storage.saveSettings({
-        skipRunningKeywords: elSkipRunning.value,
-        skipStandbyKeywords: elSkipStandby.value,
+        dbWebAppUrl: elDbUrlInput.value.trim(),
+        dbSecretToken: elDbTokenInput.value.trim(),
         targetUrlPattern: elUrlPattern.value.trim() || '*',
         clickDelayMs: Number.isFinite(delayVal) && delayVal >= 0 ? delayVal : 150
       });
       currentSettings = updated;
-      showSavedToast('Pengaturan tersimpan');
-    }, 250);
+      showToast('Konfigurasi teknis disimpan.', 'info');
+    }, 300);
   }
 
-  elSkipRunning.addEventListener('input', scheduleFieldSave);
-  elSkipStandby.addEventListener('input', scheduleFieldSave);
+  elDbUrlInput.addEventListener('input', scheduleFieldSave);
+  elDbTokenInput.addEventListener('input', scheduleFieldSave);
   elUrlPattern.addEventListener('input', scheduleFieldSave);
   elClickDelay.addEventListener('input', scheduleFieldSave);
+
+  elDbAutoPullToggle.addEventListener('change', async function () {
+    const updated = await Storage.saveSettings({ dbAutoPull: Boolean(elDbAutoPullToggle.checked) });
+    renderAll(updated);
+    showToast(
+      updated.dbAutoPull ? 'Auto-Pull saat dibuka diaktifkan.' : 'Auto-Pull dimatikan.',
+      'info'
+    );
+  });
+
+  elDbPullBtn.addEventListener('click', function () {
+    handlePullFromDb(false);
+  });
+
+  elDbPushBtn.addEventListener('click', function () {
+    handlePushToDb();
+  });
 
   elSearchInput.addEventListener('input', renderEquipmentList);
 
@@ -563,8 +799,7 @@ async function init() {
       };
       const updated = await Storage.saveOperatorMap(selectedOpId, nextMap);
       renderAll(updated);
-      showSavedToast(tagA + ' → ' + stateB + ' | ' + tagB + ' → ' + stateA);
-      showEquipNotice('Status pasangan ditukar: ' + tagA + ' (' + stateB + ') ↔ ' + tagB + ' (' + stateA + ').');
+      showToast('Status ditukar: ' + tagA + ' (' + stateB + ') / ' + tagB + ' (' + stateA + ')', 'success');
       return;
     }
 
@@ -576,14 +811,14 @@ async function init() {
     const nextMap = { ...currentMap, [tag]: nextState };
     const updated = await Storage.saveOperatorMap(selectedOpId, nextMap);
     renderAll(updated);
-    showSavedToast(tag + ' → ' + nextState);
+    showToast(tag + ' → ' + nextState, 'success');
   });
 
   elScrapeBtn.addEventListener('click', async function () {
     try {
       const foundTags = await scrapeActiveTabTags();
       if (foundTags.length === 0) {
-        showEquipNotice('Tidak ditemukan baris tr[data-task-id] pada tab aktif.');
+        showToast('Tidak ditemukan baris tr[data-task-id] pada tab aktif.', 'warning');
         return;
       }
       const currentMap = (currentSettings.operators && currentSettings.operators[selectedOpId]) || {};
@@ -598,12 +833,12 @@ async function init() {
       const preset = EQUIPMENT_DB[selectedOpId] || EQUIPMENT_DB.op1;
       const updated = await Storage.saveOperatorMap(selectedOpId, nextMap);
       renderAll(updated);
-      showEquipNotice(
-        'Ditemukan ' + foundTags.length + ' tag unik di tab aktif (' + addedCount + ' tag baru ditambahkan ke ' + preset.label + ').'
+      showToast(
+        'Ditemukan ' + foundTags.length + ' tag (' + addedCount + ' baru ke ' + preset.label + ').',
+        'success'
       );
-      showSavedToast('Tag tab aktif dimuat');
     } catch (err) {
-      showEquipNotice(err && err.message ? err.message : 'Gagal mengambil tag dari tab aktif.');
+      showToast(err && err.message ? err.message : 'Gagal mengambil tag dari tab aktif.', 'error');
     }
   });
 
@@ -636,59 +871,20 @@ async function init() {
     const updated = await Storage.saveOperatorMap(selectedOpId, nextMap);
     renderAll(updated);
     closeBulkModal();
-    showEquipNotice(lines.length + ' tag diproses (' + addedCount + ' tag baru) dengan status ' + defaultState + '.');
-    showSavedToast('Bulk paste tersimpan');
+    showToast(lines.length + ' tag diproses (' + addedCount + ' baru) → ' + defaultState + '.', 'success');
   });
 
   elResetDefaultBtn.addEventListener('click', async function () {
     const preset = EQUIPMENT_DB[selectedOpId] || EQUIPMENT_DB.op1;
     const updated = await Storage.resetOperatorDefaults(selectedOpId);
     renderAll(updated);
-    showEquipNotice(
-      'Daftar equipment ' + preset.label + ' direset ke ' + preset.equipments.length + ' tag default (semua RUNNING).'
-    );
-    showSavedToast('Reset ' + preset.label);
-  });
-
-  elExportBtn.addEventListener('click', function () {
-    const payload = JSON.stringify(currentSettings, null, 2);
-    const blob = new Blob([payload], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'tpm-smart-checklist-config.json';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    showSavedToast('JSON diekspor');
-  });
-
-  elImportBtn.addEventListener('click', function () {
-    elImportFile.click();
-  });
-
-  elImportFile.addEventListener('change', async function () {
-    const file = elImportFile.files && elImportFile.files[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      const normalized = Storage.normalizeState(parsed);
-      const updated = await Storage.saveSettings(normalized);
-      renderAll(updated);
-      showSavedToast('Konfigurasi JSON diimpor');
-    } catch (err) {
-      showEquipNotice('File JSON tidak valid: ' + (err && err.message ? err.message : 'Format salah'));
-    } finally {
-      elImportFile.value = '';
-    }
+    showToast(preset.label + ' direset ke ' + preset.equipments.length + ' unit default.', 'warning');
   });
 
   elClearHistoryBtn.addEventListener('click', async function () {
     const updated = await Storage.clearHistory();
     renderAll(updated);
-    showSavedToast('Riwayat dibersihkan');
+    showToast('Riwayat eksekusi dibersihkan.', 'info');
   });
 }
 

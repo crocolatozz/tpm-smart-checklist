@@ -77,3 +77,17 @@ export const EQUIPMENT_DB = {
     ]
   }
 };
+
+export const TASK_KEYWORD_TEMPLATES = [
+  'Putar poros',
+  'Kelainan suara',
+  'Oil cup',
+  'Level oli',
+  'Temperatur bearing',
+  'Kebocoran mechanical seal',
+  'Vibrasi pompa',
+  'Belt tension',
+  'Pressure gauge',
+  'Kebersihan area'
+];
+

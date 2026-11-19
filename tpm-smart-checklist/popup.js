@@ -5,6 +5,12 @@ const elVersion = document.getElementById('popup-version');
 const elDebugBadge = document.getElementById('popup-debug-badge');
 const elThemeBtn = document.getElementById('theme-toggle-btn');
 const elOptionsBtn = document.getElementById('open-options-btn');
+
+const elContextCard = document.getElementById('context-card');
+const elCtxPageBadge = document.getElementById('ctx-page-badge');
+const elCtxDateVal = document.getElementById('ctx-date-val');
+const elGuardHint = document.getElementById('execute-guard-hint');
+
 const elOpBtns = Array.from(document.querySelectorAll('.op-seg-btn[data-operator]'));
 const elOperatorLabel = document.getElementById('preset-operator-label');
 const elRunningChip = document.getElementById('running-count-chip');
@@ -30,6 +36,14 @@ const elStatUntouched = document.getElementById('stat-untouched');
 const elStatRemainingUnset = document.getElementById('stat-remaining-unset');
 
 let currentSettings = Storage.createDefaultSettings();
+let pageContext = {
+  isValidPage: false,
+  operatorKey: null,
+  operatorLabel: null,
+  rawAreaLabel: '',
+  activeDateFormatted: '-',
+  activeDateISO: ''
+};
 let isBusy = false;
 let hasManualShiftOverride = false;
 
@@ -42,6 +56,44 @@ function renderButtonIcons(theme) {
   elDryRunBtn.replaceChildren(createSvgIcon('eye', 14), document.createTextNode('Dry Run'));
   elClearDryRunBtn.replaceChildren(createSvgIcon('x', 13), document.createTextNode('Clear'));
   elExecuteBtn.replaceChildren(createSvgIcon('play', 14), document.createTextNode('Execute'));
+}
+
+function updateExecuteAvailability() {
+  const isDebug = Boolean(currentSettings.debugMode);
+  const blockedByGuard = !isDebug && !pageContext.isValidPage;
+
+  elExecuteBtn.disabled = isBusy || blockedByGuard;
+  elGuardHint.classList.toggle('is-hidden', !blockedByGuard);
+}
+
+function renderPageContext() {
+  const valid = Boolean(pageContext && pageContext.isValidPage && pageContext.operatorLabel);
+
+  elContextCard.classList.toggle('is-valid', valid);
+  elContextCard.classList.toggle('is-invalid', !valid);
+
+  elCtxPageBadge.classList.toggle('is-valid', valid);
+  elCtxPageBadge.classList.toggle('is-warn', !valid);
+
+  if (valid) {
+    elCtxPageBadge.replaceChildren(
+      createSvgIcon('check-circle', 12),
+      document.createTextNode(pageContext.operatorLabel)
+    );
+  } else {
+    elCtxPageBadge.replaceChildren(
+      createSvgIcon('alert-triangle', 12),
+      document.createTextNode('Di luar halaman Operator 1–3')
+    );
+  }
+
+  const dateText = (pageContext && pageContext.activeDateFormatted) || '-';
+  elCtxDateVal.replaceChildren(
+    createSvgIcon('calendar', 12),
+    document.createTextNode(dateText)
+  );
+
+  updateExecuteAvailability();
 }
 
 function renderSettings(settings, isInitialBoot) {
@@ -84,6 +136,8 @@ function renderSettings(settings, isInitialBoot) {
   } else if (!hasManualShiftOverride && !settings.autoDetectShift) {
     elScheduleFilter.value = settings.lastFilter || 'all';
   }
+
+  updateExecuteAvailability();
 }
 
 function setStatus(text, tone) {
@@ -127,7 +181,6 @@ function setBusy(busy) {
   isBusy = busy;
   elDryRunBtn.disabled = busy;
   elClearDryRunBtn.disabled = busy;
-  elExecuteBtn.disabled = busy;
   elScheduleFilter.disabled = busy;
   elAutoDetectShift.disabled = busy;
   elIncludeEveryShift.disabled = busy;
@@ -135,6 +188,7 @@ function setBusy(busy) {
   for (const btn of elOpBtns) {
     btn.disabled = busy;
   }
+  updateExecuteAvailability();
 }
 
 function queryActiveTab() {
@@ -189,6 +243,43 @@ function sendTabMessage(tabId, message) {
       resolve(response);
     });
   });
+}
+
+async function detectAndSyncPageContext() {
+  try {
+    const tab = await queryActiveTab();
+    if (!tab || !tab.id) {
+      renderPageContext();
+      return;
+    }
+    await injectContentScript(tab.id);
+    const ctx = await sendTabMessage(tab.id, { action: 'GET_PAGE_CONTEXT' });
+    if (ctx && typeof ctx === 'object') {
+      pageContext = {
+        isValidPage: Boolean(ctx.isValidPage),
+        operatorKey: ctx.operatorKey || null,
+        operatorLabel: ctx.operatorLabel || null,
+        rawAreaLabel: ctx.rawAreaLabel || '',
+        activeDateFormatted: ctx.activeDateFormatted || '-',
+        activeDateISO: ctx.activeDateISO || ''
+      };
+
+      if (pageContext.isValidPage && pageContext.operatorKey && currentSettings.activeOperator !== pageContext.operatorKey) {
+        const synced = await Storage.saveSettings({ activeOperator: pageContext.operatorKey });
+        renderSettings(synced, false);
+      }
+    }
+  } catch (err) {
+    pageContext = {
+      isValidPage: false,
+      operatorKey: null,
+      operatorLabel: null,
+      rawAreaLabel: '',
+      activeDateFormatted: '-',
+      activeDateISO: ''
+    };
+  }
+  renderPageContext();
 }
 
 async function clearPreviewOnActiveTab(options) {
@@ -309,6 +400,11 @@ async function triggerDryRun() {
 
 async function triggerExecuteWorkflow() {
   if (isBusy) return;
+  if (!currentSettings.debugMode && !pageContext.isValidPage) {
+    updateExecuteAvailability();
+    return;
+  }
+
   setBusy(true);
 
   try {
@@ -327,14 +423,15 @@ async function triggerExecuteWorkflow() {
       return;
     }
 
-    const opId = settings.activeOperator || 'op1';
+    const opId = !settings.debugMode && pageContext.operatorKey
+      ? pageContext.operatorKey
+      : (settings.activeOperator || 'op1');
     const preset = Storage.OPERATOR_PRESETS[opId] || Storage.OPERATOR_PRESETS.op1;
     const equipmentMap = (settings.operators && settings.operators[opId]) || {};
     const scheduleFilter = elScheduleFilter.value || 'all';
     const selectedOpt = elScheduleFilter.options[elScheduleFilter.selectedIndex];
     const scheduleLabel = selectedOpt ? selectedOpt.textContent.trim() : scheduleFilter;
     const includeEveryShift = Boolean(elIncludeEveryShift.checked);
-    // Keep auto-expand 300+ rows enabled automatically in Daily Operational Mode (Debug Mode OFF)
     const autoShowAllRows = settings.debugMode ? Boolean(elAutoShowAllRows.checked) : true;
 
     await injectContentScript(tab.id);
@@ -346,6 +443,7 @@ async function triggerExecuteWorkflow() {
         payload: {
           operatorId: opId,
           operatorLabel: preset.label,
+          activeDateFormatted: pageContext.activeDateFormatted || '-',
           scheduleFilter: scheduleFilter,
           scheduleLabel: scheduleLabel,
           includeEveryShift: includeEveryShift,
@@ -370,7 +468,6 @@ async function triggerExecuteWorkflow() {
           return;
         }
 
-        // Safely close extension popup ONLY inside chrome.tabs.sendMessage success callback
         if (window.top === window.self) {
           window.close();
           return;
@@ -418,6 +515,8 @@ async function init() {
 
   const initial = await Storage.getSettings();
   renderSettings(initial, true);
+
+  await detectAndSyncPageContext();
 
   Storage.onChanged(function (updated) {
     renderSettings(updated, false);

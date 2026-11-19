@@ -87,6 +87,11 @@
   }
 
   function parseKeywordList(raw) {
+    if (Array.isArray(raw)) {
+      return raw
+        .map((item) => String(item || '').trim().toLowerCase())
+        .filter(Boolean);
+    }
     return String(raw || '')
       .split(',')
       .map((item) => item.trim().toLowerCase())
@@ -100,6 +105,88 @@
       if (lowerTask.includes(kw)) return kw;
     }
     return null;
+  }
+
+  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+  function formatIsoDateLabel(isoStr) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(isoStr || '').trim());
+    if (!m) return '';
+    const year = m[1];
+    const monthIdx = Number(m[2]) - 1;
+    const day = Number(m[3]);
+    if (monthIdx < 0 || monthIdx > 11 || !Number.isFinite(day)) return isoStr;
+    return day + ' ' + MONTH_NAMES[monthIdx] + ' ' + year;
+  }
+
+  function detectPageContext() {
+    const headerCandidates = Array.from(document.querySelectorAll('.card-header h4'));
+    const fallbackH4 = headerCandidates.length > 0
+      ? headerCandidates
+      : Array.from(document.querySelectorAll('h4')).filter((el) => /tpm\s*execution/i.test(el.textContent || ''));
+
+    let matchedText = '';
+    let operatorKey = null;
+    let operatorLabel = null;
+    let rawAreaLabel = '';
+
+    for (const h4 of fallbackH4) {
+      const txt = (h4.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!txt) continue;
+      if (/LAPANGAN\s*1\b/i.test(txt)) {
+        matchedText = txt;
+        operatorKey = 'op1';
+        operatorLabel = 'Operator 1';
+        rawAreaLabel = 'LAPANGAN 1';
+        break;
+      }
+      if (/LAPANGAN\s*2\b/i.test(txt)) {
+        matchedText = txt;
+        operatorKey = 'op2';
+        operatorLabel = 'Operator 2';
+        rawAreaLabel = 'LAPANGAN 2';
+        break;
+      }
+      if (/LAPANGAN\s*3\b/i.test(txt)) {
+        matchedText = txt;
+        operatorKey = 'op3';
+        operatorLabel = 'Operator 3';
+        rawAreaLabel = 'LAPANGAN 3';
+        break;
+      }
+    }
+
+    const isValidPage = Boolean(operatorKey);
+    let activeDateISO = '';
+    let activeDateFormatted = '-';
+
+    const dateInput = document.querySelector('.card-header input[type="date"]');
+    if (dateInput && dateInput.value) {
+      activeDateISO = String(dateInput.value).trim();
+      activeDateFormatted = formatIsoDateLabel(activeDateISO) || activeDateISO;
+    } else {
+      const mutedList = Array.from(document.querySelectorAll('.card-header .text-muted'));
+      for (const el of mutedList) {
+        if (el.querySelector('.ri-calendar-line')) {
+          const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+          if (text) {
+            activeDateFormatted = text;
+            break;
+          }
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      isValidPage: isValidPage,
+      operatorKey: operatorKey,
+      operatorLabel: operatorLabel,
+      rawAreaLabel: rawAreaLabel,
+      headerTitle: matchedText,
+      activeDateISO: activeDateISO,
+      activeDateFormatted: activeDateFormatted
+    };
   }
 
   function getCheckboxState(row, checkbox) {
@@ -199,7 +286,7 @@
     return false;
   }
 
-  async function ensureAllRowsDisplayed() {
+  function triggerExpandRowsSelect() {
     const prioritySelects = Array.from(
       document.querySelectorAll('select[name*="_length"], .dataTables_length select')
     );
@@ -236,11 +323,44 @@
       }
     }
 
-    if (expanded) {
-      await sleep(600);
+    return { expanded: expanded, expandedTo: expandedTo };
+  }
+
+  async function waitForStableChecklistRows(maxWaitMs) {
+    const timeoutMs = Number(maxWaitMs) || 8000;
+    const pollIntervalMs = 250;
+    const startAt = Date.now();
+    let prevCount = -1;
+    let sameSinceAt = 0;
+    let consecutiveSame = 0;
+
+    while (Date.now() - startAt < timeoutMs) {
+      const count = document.querySelectorAll('tr[data-task-id]').length;
+      const now = Date.now();
+
+      if (count > 0 && count === prevCount) {
+        consecutiveSame++;
+        if (consecutiveSame >= 2 || now - sameSinceAt >= 500) {
+          return count;
+        }
+      } else {
+        prevCount = count;
+        sameSinceAt = now;
+        consecutiveSame = 0;
+      }
+
+      await sleep(pollIntervalMs);
     }
 
-    return { expanded: expanded, expandedTo: expandedTo };
+    return document.querySelectorAll('tr[data-task-id]').length;
+  }
+
+  async function ensureAllRowsDisplayed() {
+    const info = triggerExpandRowsSelect();
+    if (info.expanded) {
+      await waitForStableChecklistRows(8000);
+    }
+    return info;
   }
 
   function clearJumpHighlight() {
@@ -651,35 +771,86 @@
     const px = Number(size) || 18;
     svg.setAttribute('width', String(px));
     svg.setAttribute('height', String(px));
-    svg.setAttribute('viewBox', name === 'smart-logo' ? '0 0 128 128' : '0 0 24 24');
+    svg.setAttribute('viewBox', name === 'smart-logo' ? '0 0 512 512' : '0 0 24 24');
     svg.setAttribute('fill', 'none');
     svg.setAttribute('aria-hidden', 'true');
 
     if (name === 'smart-logo') {
-      const bg = document.createElementNS(SVG_NS, 'rect');
-      bg.setAttribute('x', '8');
-      bg.setAttribute('y', '8');
-      bg.setAttribute('width', '112');
-      bg.setAttribute('height', '112');
-      bg.setAttribute('rx', '28');
-      bg.setAttribute('fill', '#2563eb');
-      svg.appendChild(bg);
+      const rays = [
+        [256, 14, 256, 72],
+        [85, 85, 126, 126],
+        [427, 85, 386, 126],
+        [14, 256, 72, 256],
+        [440, 256, 498, 256],
+        [85, 427, 126, 386],
+        [427, 427, 386, 386]
+      ];
+      const g = document.createElementNS(SVG_NS, 'g');
+      g.setAttribute('stroke', '#10B981');
+      g.setAttribute('stroke-width', '24');
+      g.setAttribute('stroke-linecap', 'round');
+      for (const [x1, y1, x2, y2] of rays) {
+        const line = document.createElementNS(SVG_NS, 'line');
+        line.setAttribute('x1', String(x1));
+        line.setAttribute('y1', String(y1));
+        line.setAttribute('x2', String(x2));
+        line.setAttribute('y2', String(y2));
+        g.appendChild(line);
+      }
+      svg.appendChild(g);
+
+      const baseRect = document.createElementNS(SVG_NS, 'rect');
+      baseRect.setAttribute('x', '204');
+      baseRect.setAttribute('y', '422');
+      baseRect.setAttribute('width', '104');
+      baseRect.setAttribute('height', '44');
+      baseRect.setAttribute('rx', '12');
+      baseRect.setAttribute('fill', '#D1FAE5');
+      svg.appendChild(baseRect);
+
+      const cap = document.createElementNS(SVG_NS, 'path');
+      cap.setAttribute('d', 'M222 468C228 486 241 498 256 498C271 498 284 486 290 468');
+      cap.setAttribute('fill', '#D1FAE5');
+      cap.setAttribute('stroke', '#10B981');
+      cap.setAttribute('stroke-width', '24');
+      cap.setAttribute('stroke-linecap', 'round');
+      cap.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(cap);
+
+      const bulb = document.createElementNS(SVG_NS, 'path');
+      bulb.setAttribute('d', 'M256 112C176.5 112 112 176.5 112 256C112 311.2 143.1 359.2 188.8 383.3C198.2 388.3 204 398.1 204 408.7V452C204 460.8 211.2 468 220 468H292C300.8 468 308 460.8 308 452V408.7C308 398.1 313.8 388.3 323.2 383.3C368.9 359.2 400 311.2 400 256C400 176.5 335.5 112 256 112Z');
+      bulb.setAttribute('stroke', '#10B981');
+      bulb.setAttribute('stroke-width', '24');
+      bulb.setAttribute('stroke-linecap', 'round');
+      bulb.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(bulb);
+
+      const neck = document.createElementNS(SVG_NS, 'line');
+      neck.setAttribute('x1', '204');
+      neck.setAttribute('y1', '422');
+      neck.setAttribute('x2', '308');
+      neck.setAttribute('y2', '422');
+      neck.setAttribute('stroke', '#10B981');
+      neck.setAttribute('stroke-width', '24');
+      neck.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(neck);
+
+      const innerCircle = document.createElementNS(SVG_NS, 'circle');
+      innerCircle.setAttribute('cx', '256');
+      innerCircle.setAttribute('cy', '255');
+      innerCircle.setAttribute('r', '68');
+      innerCircle.setAttribute('fill', '#D1FAE5');
+      innerCircle.setAttribute('stroke', '#10B981');
+      innerCircle.setAttribute('stroke-width', '24');
+      svg.appendChild(innerCircle);
 
       const check = document.createElementNS(SVG_NS, 'path');
-      check.setAttribute('d', 'M32 68 L52 88 L88 48');
-      check.setAttribute('stroke', '#ffffff');
-      check.setAttribute('stroke-width', '14');
+      check.setAttribute('d', 'M230 255L248 273L283 238');
+      check.setAttribute('stroke', '#10B981');
+      check.setAttribute('stroke-width', '24');
       check.setAttribute('stroke-linecap', 'round');
       check.setAttribute('stroke-linejoin', 'round');
       svg.appendChild(check);
-
-      const spark = document.createElementNS(SVG_NS, 'path');
-      spark.setAttribute('d', 'M94 14 L99.5 28.5 L114 34 L99.5 39.5 L94 54 L88.5 39.5 L74 34 L88.5 28.5 Z');
-      spark.setAttribute('fill', '#fbbf24');
-      spark.setAttribute('stroke', '#ffffff');
-      spark.setAttribute('stroke-width', '2.5');
-      spark.setAttribute('stroke-linejoin', 'round');
-      svg.appendChild(spark);
       return svg;
     }
 
@@ -738,17 +909,18 @@
       .tpm-backdrop {
         --bg-card: #ffffff;
         --bg-subtle: #f8fafc;
-        --bg-inset: #eef2f6;
-        --border-color: #dce3ec;
-        --border-strong: #c4cedb;
+        --bg-inset: #eef2f5;
+        --border-color: #dce3ea;
+        --border-strong: #c3cdd8;
         --text-primary: #0f172a;
         --text-secondary: #475569;
         --text-muted: #64748b;
-        --accent: #2563eb;
-        --accent-hover: #1d4ed8;
-        --accent-soft: rgba(37, 99, 235, 0.12);
-        --green: #16a34a;
-        --green-soft: rgba(22, 163, 74, 0.14);
+        --accent: #10B981;
+        --accent-btn: #059669;
+        --accent-hover: #047857;
+        --accent-soft: #D1FAE5;
+        --green: #059669;
+        --green-soft: rgba(16, 185, 129, 0.14);
         --amber: #b45309;
         --amber-bg: #fffbeb;
         --amber-border: #fcd34d;
@@ -765,19 +937,20 @@
       }
 
       .tpm-backdrop[data-theme="dark"] {
-        --bg-card: #111827;
-        --bg-subtle: #161f30;
-        --bg-inset: #0d1422;
+        --bg-card: #111824;
+        --bg-subtle: #162030;
+        --bg-inset: #0d141f;
         --border-color: rgba(255, 255, 255, 0.12);
         --border-strong: rgba(255, 255, 255, 0.2);
         --text-primary: #f1f5f9;
         --text-secondary: #cbd5e1;
         --text-muted: #94a3b8;
-        --accent: #3b82f6;
-        --accent-hover: #2563eb;
-        --accent-soft: rgba(59, 130, 246, 0.18);
-        --green: #22c55e;
-        --green-soft: rgba(34, 197, 94, 0.18);
+        --accent: #10B981;
+        --accent-btn: #059669;
+        --accent-hover: #047857;
+        --accent-soft: rgba(16, 185, 129, 0.16);
+        --green: #10B981;
+        --green-soft: rgba(16, 185, 129, 0.18);
         --amber: #fbbf24;
         --amber-bg: rgba(245, 158, 11, 0.14);
         --amber-border: rgba(245, 158, 11, 0.45);
@@ -1007,14 +1180,28 @@
       }
 
       .tpm-btn-primary {
-        background: var(--accent);
-        border-color: var(--accent);
+        background: var(--accent-btn);
+        border-color: var(--accent-btn);
         color: #ffffff;
       }
 
       .tpm-btn-primary:hover {
         background: var(--accent-hover);
         border-color: var(--accent-hover);
+      }
+
+      .tpm-spinner {
+        width: 18px;
+        height: 18px;
+        border: 2.5px solid var(--accent-soft);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: tpmSpin 700ms linear infinite;
+        flex-shrink: 0;
+      }
+
+      @keyframes tpmSpin {
+        to { transform: rotate(360deg); }
       }
     `;
   }
@@ -1036,10 +1223,6 @@
       activeModalState.restoreScroll();
       activeModalState.restoreScroll = null;
     }
-    if (typeof activeModalState.removeKeyListener === 'function') {
-      activeModalState.removeKeyListener();
-      activeModalState.removeKeyListener = null;
-    }
     if (activeModalState.host && activeModalState.host.parentNode) {
       activeModalState.host.parentNode.removeChild(activeModalState.host);
     }
@@ -1050,6 +1233,17 @@
     if (activeModalState || document.getElementById(MODAL_HOST_ID)) {
       return { ok: true, alreadyOpen: true };
     }
+
+    const liveContext = detectPageContext();
+    const resolvedOperatorLabel =
+      (liveContext.isValidPage && liveContext.operatorLabel) ||
+      payload.operatorLabel ||
+      'Operator 1';
+    const resolvedAreaSuffix = liveContext.rawAreaLabel ? ' (' + liveContext.rawAreaLabel + ')' : '';
+    const resolvedDate =
+      (liveContext.activeDateFormatted && liveContext.activeDateFormatted !== '-'
+        ? liveContext.activeDateFormatted
+        : payload.activeDateFormatted) || '-';
 
     const host = document.createElement('div');
     host.id = MODAL_HOST_ID;
@@ -1078,44 +1272,45 @@
       host: host,
       modal: modal,
       backdrop: backdrop,
-      stage: 'confirm',
-      restoreScroll: restoreScroll,
-      removeKeyListener: null,
-      onEnter: null,
-      onEscape: null
+      stage: 'loading',
+      restoreScroll: restoreScroll
     };
     activeModalState = state;
 
-    function handleKeyDown(e) {
-      if (!activeModalState) return;
-      if (state.stage === 'progress') {
-        if (e.key === 'Escape' || e.key === 'Enter') {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-        return;
-      }
-      if (e.key === 'Escape' && typeof state.onEscape === 'function') {
-        e.preventDefault();
-        e.stopPropagation();
-        state.onEscape();
-      } else if (e.key === 'Enter' && typeof state.onEnter === 'function') {
-        e.preventDefault();
-        e.stopPropagation();
-        state.onEnter();
-      }
+    function renderLoadingRowsState() {
+      state.stage = 'loading';
+      modal.replaceChildren();
+
+      const header = document.createElement('div');
+      header.className = 'tpm-header';
+      header.appendChild(createShadowSvg('smart-logo', 36));
+      const titleWrap = document.createElement('div');
+      const title = document.createElement('h2');
+      title.className = 'tpm-title';
+      title.textContent = 'Memuat daftar baris TPM...';
+      const sub = document.createElement('p');
+      sub.className = 'tpm-sub';
+      sub.textContent = 'Menunggu tabel menampilkan seluruh baris checklist (300+) secara stabil.';
+      titleWrap.appendChild(title);
+      titleWrap.appendChild(sub);
+      header.appendChild(titleWrap);
+
+      const loadBox = document.createElement('div');
+      loadBox.className = 'tpm-progress-box';
+      loadBox.style.flexDirection = 'row';
+      loadBox.style.alignItems = 'center';
+      loadBox.style.gap = '10px';
+      const spinner = document.createElement('span');
+      spinner.className = 'tpm-spinner';
+      const msg = document.createElement('span');
+      msg.className = 'tpm-progress-label';
+      msg.textContent = 'Memeriksa kestabilan DOM tabel web TPM...';
+      loadBox.appendChild(spinner);
+      loadBox.appendChild(msg);
+
+      modal.appendChild(header);
+      modal.appendChild(loadBox);
     }
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    state.removeKeyListener = function () {
-      window.removeEventListener('keydown', handleKeyDown, true);
-    };
-
-    backdrop.addEventListener('click', function (e) {
-      if (e.target === backdrop && state.stage !== 'progress' && typeof state.onEscape === 'function') {
-        state.onEscape();
-      }
-    });
 
     function renderWarningNoRows() {
       state.stage = 'warning';
@@ -1129,10 +1324,10 @@
       const titleWrap = document.createElement('div');
       const title = document.createElement('h2');
       title.className = 'tpm-title';
-      title.textContent = 'Tabel Checklist Tidak Ditemukan';
+      title.textContent = 'Tidak ditemukan tag checklist';
       const sub = document.createElement('p');
       sub.className = 'tpm-sub';
-      sub.textContent = 'Tidak ada baris checklist (0 baris) pada halaman web TPM ini.';
+      sub.textContent = 'Tidak ditemukan tag checklist (0 baris) pada halaman web TPM ini.';
       titleWrap.appendChild(title);
       titleWrap.appendChild(sub);
       header.appendChild(iconBox);
@@ -1140,7 +1335,7 @@
 
       const note = document.createElement('p');
       note.className = 'tpm-remain-note';
-      note.textContent = 'Pastikan Anda membuka halaman daftar checklist web TPM yang sudah menampilkan tabel equipment sebelum menjalankan Smart Checklist.';
+      note.textContent = 'Pastikan halaman daftar checklist web TPM sudah terbuka dan menampilkan baris equipment sebelum menjalankan Smart Checklist.';
 
       const actions = document.createElement('div');
       actions.className = 'tpm-actions';
@@ -1154,10 +1349,6 @@
       modal.appendChild(header);
       modal.appendChild(note);
       modal.appendChild(actions);
-
-      state.onEscape = closeActiveModal;
-      state.onEnter = closeActiveModal;
-      okBtn.focus();
     }
 
     function renderStage3(result) {
@@ -1183,7 +1374,7 @@
       title.textContent = 'Telah dilakukan Smart Checklist';
       const sub = document.createElement('p');
       sub.className = 'tpm-sub';
-      sub.textContent = (payload.operatorLabel || 'Operator 1') + ' · ' + (payload.scheduleLabel || 'Semua Jadwal');
+      sub.textContent = resolvedOperatorLabel + ' · ' + resolvedDate + ' · ' + (payload.scheduleLabel || 'Semua Jadwal');
       titleWrap.appendChild(title);
       titleWrap.appendChild(sub);
       header.appendChild(iconBox);
@@ -1238,15 +1429,11 @@
         doneBtn.addEventListener('click', closeActiveModal);
         actions.appendChild(doneBtn);
 
-        state.onEscape = closeActiveModal;
-        state.onEnter = closeActiveModal;
-
         modal.appendChild(header);
         modal.appendChild(unitChips);
         modal.appendChild(banner);
         modal.appendChild(remainNote);
         modal.appendChild(actions);
-        doneBtn.focus();
       } else {
         remainNote.textContent =
           'Masih terdapat ' + remainingCount + ' baris unit aktif (Running / Standby) yang berstatus Unset.';
@@ -1274,22 +1461,16 @@
         actions.appendChild(closeBtn);
         actions.appendChild(jumpBtn);
 
-        state.onEscape = closeActiveModal;
-        state.onEnter = jumpToFirstRemaining;
-
         modal.appendChild(header);
         modal.appendChild(unitChips);
         modal.appendChild(banner);
         modal.appendChild(remainNote);
         modal.appendChild(actions);
-        jumpBtn.focus();
       }
     }
 
     async function startStage2Execution() {
       state.stage = 'progress';
-      state.onEscape = null;
-      state.onEnter = null;
       modal.replaceChildren();
 
       const header = document.createElement('div');
@@ -1331,6 +1512,7 @@
         {
           ...payload,
           dryRun: false,
+          autoShowAllRows: false,
           autoJumpOnFinish: false
         },
         function (prog) {
@@ -1363,7 +1545,7 @@
         payload: {
           timestamp: new Date().toISOString(),
           operatorId: payload.operatorId || 'op1',
-          operatorLabel: payload.operatorLabel || 'Operator 1',
+          operatorLabel: resolvedOperatorLabel,
           mode: 'Execute',
           scheduleFilter: payload.scheduleFilter || 'all',
           includeEveryShift: Boolean(payload.includeEveryShift),
@@ -1392,7 +1574,7 @@
       title.textContent = 'Konfirmasi Smart Checklist';
       const sub = document.createElement('p');
       sub.className = 'tpm-sub';
-      sub.textContent = 'Periksa operator dan jadwal sebelum mengisi checklist web TPM.';
+      sub.textContent = 'Periksa halaman operator, tanggal aktif, dan jadwal sebelum mengisi checklist.';
       titleWrap.appendChild(title);
       titleWrap.appendChild(sub);
       header.appendChild(titleWrap);
@@ -1401,8 +1583,9 @@
       grid.className = 'tpm-info-grid';
 
       const rowsData = [
-        { k: 'Operator', v: payload.operatorLabel || 'Operator 1' },
-        { k: 'Shift / Jadwal', v: payload.scheduleLabel || payload.scheduleFilter || 'Semua Jadwal' },
+        { k: 'Halaman Operator', v: resolvedOperatorLabel + resolvedAreaSuffix },
+        { k: 'Tanggal Aktif', v: resolvedDate },
+        { k: 'Jadwal / Shift', v: payload.scheduleLabel || payload.scheduleFilter || 'Semua Jadwal' },
         { k: 'Task Every Shift', v: payload.includeEveryShift ? 'Disertakan' : 'Tidak disertakan' }
       ];
 
@@ -1441,25 +1624,44 @@
       modal.appendChild(header);
       modal.appendChild(grid);
       modal.appendChild(actions);
-
-      state.onEscape = closeActiveModal;
-      state.onEnter = startStage2Execution;
-      confirmBtn.focus();
     }
 
-    const initialRowCount = document.querySelectorAll('tr[data-task-id]').length;
-    if (initialRowCount === 0) {
-      renderWarningNoRows();
-    } else {
-      renderStage1Confirmation();
+    async function initializeModalWithStabilityWait() {
+      const expandInfo = payload.autoShowAllRows !== false
+        ? triggerExpandRowsSelect()
+        : { expanded: false, expandedTo: null };
+
+      const currentRows = document.querySelectorAll('tr[data-task-id]').length;
+
+      // Skip wait immediately if already expanded and rows are present
+      if (!expandInfo.expanded && currentRows > 0) {
+        renderStage1Confirmation();
+        return;
+      }
+
+      renderLoadingRowsState();
+      const stabilizedRows = await waitForStableChecklistRows(8000);
+      if (!activeModalState || activeModalState !== state) return;
+
+      if (stabilizedRows === 0) {
+        renderWarningNoRows();
+      } else {
+        renderStage1Confirmation();
+      }
     }
 
+    initializeModalWithStabilityWait();
     return { ok: true, opened: true };
   }
 
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
       if (!message || typeof message !== 'object') return false;
+
+      if (message.action === 'GET_PAGE_CONTEXT') {
+        sendResponse(detectPageContext());
+        return false;
+      }
 
       if (message.action === 'SCR_START_WORKFLOW') {
         const res = openWorkflowModal(message.payload || {});

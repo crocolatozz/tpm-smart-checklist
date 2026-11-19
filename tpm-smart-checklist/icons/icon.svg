@@ -1,18 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
-  <defs>
-    <linearGradient id="bg-emerald" x1="12" y1="12" x2="116" y2="116" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#10B981"/>
-      <stop offset="100%" stop-color="#047857"/>
-    </linearGradient>
-    <linearGradient id="sparkle-gold" x1="74" y1="14" x2="114" y2="54" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FDE047"/>
-      <stop offset="100%" stop-color="#F59E0B"/>
-    </linearGradient>
-  </defs>
-  <!-- Rounded Square Badge with Diagonal Emerald Gradient & Subtle Lighter Rim -->
-  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bg-emerald)" stroke="#34D399" stroke-width="3.5"/>
-  <!-- Bold White Checkmark -->
-  <path d="M31 67L51 87L93 36" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- 4-Point Smart Sparkle with Crisp White Outline -->
-  <path d="M94 13L99.2 28.8L115 34L99.2 39.2L94 55L88.8 39.2L73 34L88.8 28.8L94 13Z" fill="url(#sparkle-gold)" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="128" height="128" fill="none">
+  <g stroke="#10B981" stroke-width="24" stroke-linecap="round">
+    <line x1="256" y1="14" x2="256" y2="72"/>
+    <line x1="85" y1="85" x2="126" y2="126"/>
+    <line x1="427" y1="85" x2="386" y2="126"/>
+    <line x1="14" y1="256" x2="72" y2="256"/>
+    <line x1="440" y1="256" x2="498" y2="256"/>
+    <line x1="85" y1="427" x2="126" y2="386"/>
+    <line x1="427" y1="427" x2="386" y2="386"/>
+  </g>
+  <rect x="204" y="422" width="104" height="44" rx="12" fill="#D1FAE5"/>
+  <path d="M222 468C228 486 241 498 256 498C271 498 284 486 290 468" fill="#D1FAE5" stroke="#10B981" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M256 112C176.5 112 112 176.5 112 256C112 311.2 143.1 359.2 188.8 383.3C198.2 388.3 204 398.1 204 408.7V452C204 460.8 211.2 468 220 468H292C300.8 468 308 460.8 308 452V408.7C308 398.1 313.8 388.3 323.2 383.3C368.9 359.2 400 311.2 400 256C400 176.5 335.5 112 256 112Z" stroke="#10B981" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="204" y1="422" x2="308" y2="422" stroke="#10B981" stroke-width="24" stroke-linecap="round"/>
+  <circle cx="256" cy="255" r="68" fill="#D1FAE5" stroke="#10B981" stroke-width="24"/>
+  <path d="M230 255L248 273L283 238" stroke="#10B981" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

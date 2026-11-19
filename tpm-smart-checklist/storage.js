@@ -1,9 +1,10 @@
-import { EQUIPMENT_DB } from './equipment-db.js';
+import { EQUIPMENT_DB, TASK_KEYWORD_TEMPLATES } from './equipment-db.js';
 
 const LOCAL_STORAGE_KEY = 'tpm_smart_checklist_v1_state';
 const STORAGE_KEY = 'tpmConfig';
 
 export const OPERATOR_PRESETS = EQUIPMENT_DB;
+export const KEYWORD_TEMPLATES = TASK_KEYWORD_TEMPLATES;
 export const VALID_OPERATOR_IDS = ['op1', 'op2', 'op3'];
 
 const VALID_FILTERS = new Set([
@@ -17,6 +18,30 @@ const VALID_FILTERS = new Set([
 ]);
 
 const VALID_STATES = new Set(['RUNNING', 'STANDBY', 'IGNORE']);
+const VALID_SYNC_STATUSES = new Set(['offline', 'synced', 'error']);
+
+export function normalizeKeywordArray(raw, fallbackList) {
+  if (raw === undefined || raw === null) {
+    return Array.isArray(fallbackList) ? fallbackList.slice() : [];
+  }
+  const source = Array.isArray(raw)
+    ? raw
+    : String(raw)
+        .split(',')
+        .map((item) => item.trim());
+
+  const seen = new Set();
+  const out = [];
+  for (const item of source) {
+    const clean = String(item || '').trim();
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+  }
+  return out;
+}
 
 export function buildDefaultEquipmentMap(opId) {
   const preset = EQUIPMENT_DB[opId] || EQUIPMENT_DB.op1;
@@ -35,6 +60,20 @@ function buildAllDefaultOperators() {
   };
 }
 
+export function buildEquipmentPairsPayload() {
+  const pairs = { op1: {}, op2: {}, op3: {} };
+  for (const opId of VALID_OPERATOR_IDS) {
+    const preset = EQUIPMENT_DB[opId];
+    if (!preset || !Array.isArray(preset.equipments)) continue;
+    for (const item of preset.equipments) {
+      if (item.pair) {
+        pairs[opId][item.tag] = item.pair;
+      }
+    }
+  }
+  return pairs;
+}
+
 export function createDefaultSettings() {
   return {
     activeOperator: 'op1',
@@ -44,10 +83,16 @@ export function createDefaultSettings() {
     autoDetectShift: true,
     includeEveryShift: true,
     autoShowAllRows: true,
-    skipRunningKeywords: 'Putar poros',
-    skipStandbyKeywords: 'Kelainan suara',
+    skipRunningKeywords: ['Putar poros'],
+    skipStandbyKeywords: ['Kelainan suara'],
     targetUrlPattern: '*',
     clickDelayMs: 150,
+    dbWebAppUrl: '',
+    dbSecretToken: '',
+    dbAutoPull: false,
+    dbLastSyncAt: '',
+    dbSyncStatus: 'offline',
+    dbSyncMessage: '',
     operators: buildAllDefaultOperators(),
     executionHistory: []
   };
@@ -101,18 +146,20 @@ export function normalizeState(raw) {
     autoDetectShift: typeof src.autoDetectShift === 'boolean' ? src.autoDetectShift : defaults.autoDetectShift,
     includeEveryShift: typeof src.includeEveryShift === 'boolean' ? src.includeEveryShift : defaults.includeEveryShift,
     autoShowAllRows: typeof src.autoShowAllRows === 'boolean' ? src.autoShowAllRows : defaults.autoShowAllRows,
-    skipRunningKeywords: typeof src.skipRunningKeywords === 'string'
-      ? src.skipRunningKeywords
-      : defaults.skipRunningKeywords,
-    skipStandbyKeywords: typeof src.skipStandbyKeywords === 'string'
-      ? src.skipStandbyKeywords
-      : defaults.skipStandbyKeywords,
+    skipRunningKeywords: normalizeKeywordArray(src.skipRunningKeywords, defaults.skipRunningKeywords),
+    skipStandbyKeywords: normalizeKeywordArray(src.skipStandbyKeywords, defaults.skipStandbyKeywords),
     targetUrlPattern: typeof src.targetUrlPattern === 'string' && src.targetUrlPattern.trim()
       ? src.targetUrlPattern.trim()
       : defaults.targetUrlPattern,
     clickDelayMs: Number.isFinite(delayNum) && delayNum >= 0
       ? Math.min(5000, Math.round(delayNum))
       : defaults.clickDelayMs,
+    dbWebAppUrl: typeof src.dbWebAppUrl === 'string' ? src.dbWebAppUrl.trim() : '',
+    dbSecretToken: typeof src.dbSecretToken === 'string' ? src.dbSecretToken.trim() : '',
+    dbAutoPull: typeof src.dbAutoPull === 'boolean' ? src.dbAutoPull : false,
+    dbLastSyncAt: typeof src.dbLastSyncAt === 'string' ? src.dbLastSyncAt.trim() : '',
+    dbSyncStatus: VALID_SYNC_STATUSES.has(src.dbSyncStatus) ? src.dbSyncStatus : 'offline',
+    dbSyncMessage: typeof src.dbSyncMessage === 'string' ? src.dbSyncMessage.trim() : '',
     operators: operators,
     executionHistory: historyArr
   };
@@ -224,6 +271,153 @@ export async function clearHistory() {
   return saveSettings({ executionHistory: [] });
 }
 
+function validateDbConfig(url, token) {
+  const cleanUrl = String(url || '').trim();
+  const cleanToken = String(token || '').trim();
+  if (!cleanUrl) {
+    throw new Error('URL Web App Apps Script belum diisi.');
+  }
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//i.test(cleanUrl)) {
+    throw new Error('URL harus mengarah ke endpoint https://script.google.com/macros/s/.../exec');
+  }
+  if (!cleanToken) {
+    throw new Error('Secret Token database belum diisi.');
+  }
+  return { url: cleanUrl, token: cleanToken };
+}
+
+export async function pullFromCentralDb(overrideConfig) {
+  const current = await getSettings();
+  const cfg = validateDbConfig(
+    overrideConfig && overrideConfig.dbWebAppUrl !== undefined ? overrideConfig.dbWebAppUrl : current.dbWebAppUrl,
+    overrideConfig && overrideConfig.dbSecretToken !== undefined ? overrideConfig.dbSecretToken : current.dbSecretToken
+  );
+
+  const sep = cfg.url.includes('?') ? '&' : '?';
+  const reqUrl = cfg.url + sep + 'action=pull&token=' + encodeURIComponent(cfg.token);
+
+  let response;
+  try {
+    response = await fetch(reqUrl, {
+      method: 'GET',
+      cache: 'no-store'
+    });
+  } catch (err) {
+    await saveSettings({
+      dbSyncStatus: 'error',
+      dbSyncMessage: 'Gagal terhubung ke server (offline).'
+    });
+    throw new Error('Tidak dapat terhubung ke server Google Sheets (mode offline tetap aktif).');
+  }
+
+  if (!response.ok) {
+    await saveSettings({
+      dbSyncStatus: 'error',
+      dbSyncMessage: 'HTTP ' + response.status
+    });
+    throw new Error('Server mengembalikan HTTP ' + response.status);
+  }
+
+  const json = await response.json();
+  if (!json || json.status !== 'ok') {
+    const errMsg = (json && json.message) || 'Respons server tidak valid.';
+    await saveSettings({
+      dbSyncStatus: 'error',
+      dbSyncMessage: errMsg
+    });
+    throw new Error(errMsg);
+  }
+
+  const remoteData = (json && json.data) || {};
+  const remoteOps = remoteData.operators && typeof remoteData.operators === 'object' ? remoteData.operators : {};
+  const mergedOps = {
+    op1: remoteOps.op1 && Object.keys(remoteOps.op1).length > 0 ? remoteOps.op1 : current.operators.op1,
+    op2: remoteOps.op2 && Object.keys(remoteOps.op2).length > 0 ? remoteOps.op2 : current.operators.op2,
+    op3: remoteOps.op3 && Object.keys(remoteOps.op3).length > 0 ? remoteOps.op3 : current.operators.op3
+  };
+
+  const nextSettings = await saveSettings({
+    dbWebAppUrl: cfg.url,
+    dbSecretToken: cfg.token,
+    operators: mergedOps,
+    skipRunningKeywords: Array.isArray(remoteData.skipRunningKeywords)
+      ? remoteData.skipRunningKeywords
+      : current.skipRunningKeywords,
+    skipStandbyKeywords: Array.isArray(remoteData.skipStandbyKeywords)
+      ? remoteData.skipStandbyKeywords
+      : current.skipStandbyKeywords,
+    dbLastSyncAt: json.updatedAt || new Date().toISOString(),
+    dbSyncStatus: 'synced',
+    dbSyncMessage: 'Pull berhasil'
+  });
+
+  return nextSettings;
+}
+
+export async function pushToCentralDb(overrideConfig) {
+  const current = await getSettings();
+  const cfg = validateDbConfig(
+    overrideConfig && overrideConfig.dbWebAppUrl !== undefined ? overrideConfig.dbWebAppUrl : current.dbWebAppUrl,
+    overrideConfig && overrideConfig.dbSecretToken !== undefined ? overrideConfig.dbSecretToken : current.dbSecretToken
+  );
+
+  const bodyPayload = {
+    secretToken: cfg.token,
+    action: 'push',
+    payload: {
+      operators: current.operators,
+      equipmentPairs: buildEquipmentPairsPayload(),
+      skipRunningKeywords: current.skipRunningKeywords,
+      skipStandbyKeywords: current.skipStandbyKeywords
+    }
+  };
+
+  let response;
+  try {
+    response = await fetch(cfg.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(bodyPayload)
+    });
+  } catch (err) {
+    await saveSettings({
+      dbSyncStatus: 'error',
+      dbSyncMessage: 'Gagal terhubung ke server (offline).'
+    });
+    throw new Error('Gagal mengirim ke server Google Sheets (mode offline tetap aman).');
+  }
+
+  if (!response.ok) {
+    await saveSettings({
+      dbSyncStatus: 'error',
+      dbSyncMessage: 'HTTP ' + response.status
+    });
+    throw new Error('Server mengembalikan HTTP ' + response.status);
+  }
+
+  const json = await response.json();
+  if (!json || json.status !== 'ok') {
+    const errMsg = (json && json.message) || 'Push ke Google Sheets gagal.';
+    await saveSettings({
+      dbSyncStatus: 'error',
+      dbSyncMessage: errMsg
+    });
+    throw new Error(errMsg);
+  }
+
+  const nextSettings = await saveSettings({
+    dbWebAppUrl: cfg.url,
+    dbSecretToken: cfg.token,
+    dbLastSyncAt: json.updatedAt || new Date().toISOString(),
+    dbSyncStatus: 'synced',
+    dbSyncMessage: 'Push berhasil'
+  });
+
+  return nextSettings;
+}
+
 export function onChanged(callback) {
   if (typeof callback !== 'function') return function () {};
 
@@ -299,8 +493,11 @@ export const TPMStorage = {
   STORAGE_KEY,
   EQUIPMENT_DB,
   OPERATOR_PRESETS,
+  KEYWORD_TEMPLATES,
   VALID_OPERATOR_IDS,
+  normalizeKeywordArray,
   buildDefaultEquipmentMap,
+  buildEquipmentPairsPayload,
   createDefaultSettings,
   normalizeState,
   getSettings,
@@ -309,6 +506,8 @@ export const TPMStorage = {
   resetOperatorDefaults,
   appendHistory,
   clearHistory,
+  pullFromCentralDb,
+  pushToCentralDb,
   onChanged,
   countEquipmentStates,
   matchesUrlPattern,

@@ -2,6 +2,19 @@
 
 Semua perubahan penting pada **TPM Smart Checklist** dicatat dalam file ini.
 
+## [2.0.0] - 2026-11-19
+
+### Added
+- **Arsitektur Database Hibrid Google Sheets (`manifest.json`, `storage.js`, `options.html`, `options.js`, `backend/Code.gs`)**: Sinkronisasi dua arah (`Pull dari DB`, `Push ke DB`, dan `Auto-Pull saat dibuka`) untuk master unit & kata kunci pengecualian melalui Google Apps Script Web App (`doGet`/`doPost` dengan `Content-Type: text/plain;charset=utf-8` tanpa preflight CORS), tetap mengandalkan cache lokal `chrome.storage.local` untuk operasi offline tanpa error.
+- **Auto-Detect Halaman Operator & Tanggal + Execute Guard (`content.js`, `popup.html`, `popup.js`)**: Deteksi otomatis halaman `LAPANGAN 1/2/3` (`Operator 1/2/3`) dan tanggal aktif web TPM via pesan `GET_PAGE_CONTEXT`, sinkronisasi otomatis preset operator aktif, serta penguncian tombol **Execute** (nonaktif/abu-abu) beserta panduan singkat jika dibuka di luar halaman operator.
+- **Smart DOM Stability Wait 300+ Baris (`content.js`)**: Modal Shadow DOM langsung terbuka dalam status `"Memuat daftar baris TPM..."` saat perluasan baris berjalan, melakukan polling tiap `250ms` (maksimal `8000ms`) hingga jumlah baris stabil pada 2 pemeriksaan berurutan (`500ms`) sebelum menampilkan Konfirmasi Pra-Eksekusi.
+- **Template Dropdown & Pill Box Kata Kunci + Floating Toasts (`equipment-db.js`, `options.html`, `options.js`, `styles.css`)**: Penggantian input teks koma menjadi dropdown template dengan kotak pill Emerald yang bisa dihapus (`×`) beserta migrasi otomatis data lama, serta sistem notifikasi **Floating Toast** bergaya PMR Web Runner.
+
+### Changed
+- **Bahasa Visual PMR Web Runner & Palet Emerald Green (`icons/icon.svg`, `styles.css`, `content.js`)**: Pembaruan ikon ekstensi ke vektor lampu-centang Emerald (`#10B981`), palet aksen Emerald (`#10B981` / `#059669` / `#D1FAE5`), ikon tukar vertikal (`↕`), header Options terkunci agar tidak turun baris saat badge `DEBUG` aktif, dan interaksi kursor murni pada modal (menghapus seluruh shortcut keyboard).
+- **Penghapusan Backup JSON Lokal (`options.html`, `options.js`)**: Bagian ekspor/impor JSON lama pada Debug Mode digantikan sepenuhnya oleh panel **Centralized Database Sync**.
+- Pembaruan versi ekstensi ke `v2.0.0` pada `manifest.json`, `popup.html`, `options.html`, dan `README.txt`.
+
 ## [1.5.0] - 2026-11-19
 
 ### Added
