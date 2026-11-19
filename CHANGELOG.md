@@ -2,6 +2,18 @@
 
 Semua perubahan penting pada **TPM Smart Checklist** dicatat dalam file ini.
 
+## [1.4.0] - 2026-11-18
+
+### Added
+- **Clear Preview Dry Run (`content.js`, `popup.html`, `popup.js`)**: Fungsi `clearDryRunPreview` untuk menghapus sorotan baris dan badge pratinjau Dry Run tanpa mengubah status checkbox Vue.js, dilengkapi tombol **Clear** di Popup serta pembersihan otomatis saat mengganti Operator atau Jadwal/Shift.
+- **Live Progress Bar (`content.js`, `popup.html`, `popup.js`)**: Progress bar tipis dan teks status langsung (`Memproses X / Y baris...`) selama **Execute** berjalan dengan pengiriman progres ter-throttle via `chrome.runtime.sendMessage`.
+- **Auto-Jump ke Sisa Baris `Unset` (`content.js`, `popup.html`, `popup.js`)**: Pemindaian otomatis setelah **Execute** selesai untuk mencari unit aktif (`RUNNING`/`STANDBY`) milik operator aktif yang masih `Unset` (`bg-dark`), scroll halus ke baris pertama yang ditemukan dengan efek pulse, serta menampilkan counter **Sisa Unset (Aktif)** di ringkasan Popup.
+
+### Changed
+- **Standardisasi Konteks web TPM (`manifest.json`, `popup.html`, `README.txt`)**: Menyeragamkan seluruh penamaan dan keterangan konteks menjadi **web TPM**.
+- **Smart Options Tab Routing & Compact Swap Gutter (`popup.js`, `options.js`, `styles.css`)**: Membuka Halaman Options langsung pada tab Operator aktif (`?op=op1|op2|op3`) serta merapikan kontrol tukar pasangan ke gutter kiri tetap `28px` dengan tombol ikon ringkas (`Swap A ↔ B`) sehingga nama tag sejajar vertikal rapi.
+- Pembaruan versi ekstensi ke `v1.4.0` pada `manifest.json`, `popup.html`, `options.html`, dan `README.txt`.
+
 ## [1.3.0] - 2026-11-18
 
 ### Added

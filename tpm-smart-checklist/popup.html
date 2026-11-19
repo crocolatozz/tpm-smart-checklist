@@ -13,7 +13,7 @@
         <span class="brand-mark" data-icon="clipboard-check" data-size="16"></span>
         <div class="brand-text-wrap">
           <h1 class="popup-title">TPM Smart Checklist</h1>
-          <span id="popup-version" class="version-pill">v1.3.0</span>
+          <span id="popup-version" class="version-pill">v1.4.0</span>
         </div>
       </div>
 
@@ -52,7 +52,7 @@
     </section>
 
     <div class="field-group">
-      <label for="schedule-filter" class="field-label">Filter Jadwal / Shift (DILOC)</label>
+      <label for="schedule-filter" class="field-label">Filter Jadwal / Shift (web TPM)</label>
       <select id="schedule-filter" class="control-select">
         <option value="all">Semua Jadwal</option>
         <option value="morning_shift">Morning Shift</option>
@@ -78,7 +78,15 @@
 
     <div class="action-grid">
       <button id="dry-run-btn" type="button" class="btn btn-dry"></button>
+      <button id="clear-dry-run-btn" type="button" class="btn btn-clear" title="Bersihkan sorotan Dry Run"></button>
       <button id="execute-btn" type="button" class="btn btn-primary"></button>
+    </div>
+
+    <div id="exec-progress-wrap" class="progress-wrap is-hidden" aria-live="polite">
+      <div id="exec-progress-text" class="progress-text">Memproses 0 / 0 baris...</div>
+      <div class="progress-track">
+        <div id="exec-progress-bar" class="progress-fill"></div>
+      </div>
     </div>
 
     <section class="summary-box" aria-label="Ringkasan Eksekusi">
@@ -102,9 +110,13 @@
           <span class="stat-name">Sudah Sesuai</span>
           <span id="stat-already" class="stat-val">0</span>
         </div>
-        <div class="stat-item is-wide">
-          <span class="stat-name">Tidak Tersentuh (Ignore / Lain)</span>
+        <div class="stat-item">
+          <span class="stat-name">Tidak Tersentuh</span>
           <span id="stat-untouched" class="stat-val">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-name">Sisa Unset (Aktif)</span>
+          <span id="stat-remaining-unset" class="stat-val">0</span>
         </div>
       </div>
     </section>

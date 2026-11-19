@@ -47,6 +47,7 @@ const elBulkDefaultState = document.getElementById('bulk-default-state');
 
 let currentSettings = Storage.createDefaultSettings();
 let selectedOpId = 'op1';
+let lastSyncedActiveOp = 'op1';
 let activeFilter = 'ALL';
 let toastTimer = null;
 
@@ -131,23 +132,37 @@ function findPartnerMap(opId, equipmentMap) {
   return partnerOf;
 }
 
-function buildSingleEquipRow(tag, state, inlinePartnerTag) {
+function createCompactSwapButton(tagA, tagB) {
+  const swapBtn = document.createElement('button');
+  swapBtn.type = 'button';
+  swapBtn.className = 'btn-swap-icon';
+  swapBtn.title = 'Swap A ↔ B (' + tagA + ' ↔ ' + tagB + ')';
+  swapBtn.setAttribute('aria-label', 'Swap ' + tagA + ' dan ' + tagB);
+  swapBtn.setAttribute('data-swap-a', tagA);
+  swapBtn.setAttribute('data-swap-b', tagB);
+  swapBtn.appendChild(createSvgIcon('swap', 14));
+  return swapBtn;
+}
+
+function buildSingleEquipRow(tag, state, inlinePartnerTag, omitGutter) {
   const row = document.createElement('div');
   row.className = 'equip-row';
 
   const left = document.createElement('div');
   left.className = 'equip-row-left';
 
-  if (inlinePartnerTag) {
-    const swapBtn = document.createElement('button');
-    swapBtn.type = 'button';
-    swapBtn.className = 'btn-swap';
-    swapBtn.title = 'Tukar status ' + tag + ' ↔ ' + inlinePartnerTag;
-    swapBtn.setAttribute('data-swap-a', tag);
-    swapBtn.setAttribute('data-swap-b', inlinePartnerTag);
-    swapBtn.appendChild(createSvgIcon('swap', 12));
-    swapBtn.appendChild(document.createTextNode('Swap A↔B'));
-    left.appendChild(swapBtn);
+  if (!omitGutter) {
+    if (inlinePartnerTag) {
+      const gutter = document.createElement('span');
+      gutter.className = 'equip-gutter';
+      gutter.appendChild(createCompactSwapButton(tag, inlinePartnerTag));
+      left.appendChild(gutter);
+    } else {
+      const spacer = document.createElement('span');
+      spacer.className = 'equip-gutter';
+      spacer.setAttribute('aria-hidden', 'true');
+      left.appendChild(spacer);
+    }
   }
 
   const tagSpan = document.createElement('span');
@@ -246,28 +261,19 @@ function renderEquipmentList() {
 
       const pairRows = document.createElement('div');
       pairRows.className = 'equip-pair-rows';
-      pairRows.appendChild(buildSingleEquipRow(tag, state, null));
-      pairRows.appendChild(buildSingleEquipRow(partnerTag, visibleLookup.get(partnerTag), null));
+      pairRows.appendChild(buildSingleEquipRow(tag, state, null, true));
+      pairRows.appendChild(buildSingleEquipRow(partnerTag, visibleLookup.get(partnerTag), null, true));
 
       const swapCol = document.createElement('div');
       swapCol.className = 'equip-pair-swap-col';
+      swapCol.appendChild(createCompactSwapButton(tag, partnerTag));
 
-      const swapBtn = document.createElement('button');
-      swapBtn.type = 'button';
-      swapBtn.className = 'btn-swap';
-      swapBtn.title = 'Tukar status ' + tag + ' ↔ ' + partnerTag;
-      swapBtn.setAttribute('data-swap-a', tag);
-      swapBtn.setAttribute('data-swap-b', partnerTag);
-      swapBtn.appendChild(createSvgIcon('swap', 13));
-      swapBtn.appendChild(document.createTextNode('Swap A↔B'));
-
-      swapCol.appendChild(swapBtn);
       pairGroup.appendChild(swapCol);
       pairGroup.appendChild(pairRows);
       fragment.appendChild(pairGroup);
     } else {
       renderedTags.add(tag);
-      fragment.appendChild(buildSingleEquipRow(tag, state, partnerTag || null));
+      fragment.appendChild(buildSingleEquipRow(tag, state, partnerTag || null, false));
     }
   }
 
@@ -333,12 +339,16 @@ function renderHistory() {
     const statsEl = document.createElement('div');
     statsEl.className = 'history-stats';
     if (Object.prototype.hasOwnProperty.call(item, 'setToExecuted')) {
+      const remNote = typeof item.remainingUnset === 'number'
+        ? ' · Sisa Unset ' + item.remainingUnset
+        : '';
       statsEl.textContent =
         'Scan ' + (item.totalScanned || 0) +
         ' · Exec ' + (item.setToExecuted || 0) +
         ' · NotExec ' + (item.setToNotExecuted || 0) +
         ' · Sudah ' + (item.alreadySet || 0) +
-        ' · Lewat ' + (item.untouchedCount || 0);
+        ' · Lewat ' + (item.untouchedCount || 0) +
+        remNote;
     } else {
       statsEl.textContent =
         'Scan ' + (item.totalScanned || 0) +
@@ -452,13 +462,32 @@ async function init() {
     }
   }
 
+  const urlParams = new URLSearchParams(window.location.search || '');
+  const queryOp = urlParams.get('op');
+
   const initial = await Storage.getSettings();
-  selectedOpId = initial.activeOperator || 'op1';
+  lastSyncedActiveOp = initial.activeOperator || 'op1';
+  selectedOpId = Storage.VALID_OPERATOR_IDS.includes(queryOp) ? queryOp : lastSyncedActiveOp;
   renderAll(initial);
 
   Storage.onChanged(function (updated) {
+    if (updated && updated.activeOperator && updated.activeOperator !== lastSyncedActiveOp) {
+      lastSyncedActiveOp = updated.activeOperator;
+      selectedOpId = updated.activeOperator;
+    }
     renderAll(updated);
   });
+
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener(function (msg) {
+      if (msg && msg.action === 'SCR_OPEN_OPERATOR_TAB' && Storage.VALID_OPERATOR_IDS.includes(msg.operatorId)) {
+        selectedOpId = msg.operatorId;
+        lastSyncedActiveOp = msg.operatorId;
+        elEquipStatusMsg.classList.add('is-hidden');
+        renderEquipmentList();
+      }
+    });
+  }
 
   for (const tabBtn of elOpTabs) {
     tabBtn.addEventListener('click', function () {
@@ -523,7 +552,8 @@ async function init() {
       };
       const updated = await Storage.saveOperatorMap(selectedOpId, nextMap);
       renderAll(updated);
-      showSavedToast(tagA + ' ↔ ' + tagB);
+      showSavedToast(tagA + ' → ' + stateB + ' | ' + tagB + ' → ' + stateA);
+      showEquipNotice('Status pasangan ditukar: ' + tagA + ' (' + stateB + ') ↔ ' + tagB + ' (' + stateA + ').');
       return;
     }
 

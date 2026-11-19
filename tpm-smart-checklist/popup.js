@@ -13,7 +13,11 @@ const elAutoDetectShift = document.getElementById('auto-detect-shift');
 const elIncludeEveryShift = document.getElementById('include-every-shift');
 const elAutoShowAllRows = document.getElementById('auto-show-all-rows');
 const elDryRunBtn = document.getElementById('dry-run-btn');
+const elClearDryRunBtn = document.getElementById('clear-dry-run-btn');
 const elExecuteBtn = document.getElementById('execute-btn');
+const elProgressWrap = document.getElementById('exec-progress-wrap');
+const elProgressText = document.getElementById('exec-progress-text');
+const elProgressBar = document.getElementById('exec-progress-bar');
 const elSummaryStatus = document.getElementById('summary-status');
 
 const elStatScanned = document.getElementById('stat-scanned');
@@ -21,6 +25,7 @@ const elStatExecuted = document.getElementById('stat-executed');
 const elStatNotExecuted = document.getElementById('stat-not-executed');
 const elStatAlready = document.getElementById('stat-already');
 const elStatUntouched = document.getElementById('stat-untouched');
+const elStatRemainingUnset = document.getElementById('stat-remaining-unset');
 
 let currentSettings = Storage.createDefaultSettings();
 let isBusy = false;
@@ -32,6 +37,7 @@ function renderButtonIcons(theme) {
   elOptionsBtn.replaceChildren(createSvgIcon('settings', 15));
 
   elDryRunBtn.replaceChildren(createSvgIcon('eye', 14), document.createTextNode('Dry Run'));
+  elClearDryRunBtn.replaceChildren(createSvgIcon('x', 13), document.createTextNode('Clear'));
   elExecuteBtn.replaceChildren(createSvgIcon('play', 14), document.createTextNode('Execute'));
 }
 
@@ -79,17 +85,38 @@ function setStatus(text, tone) {
   if (tone === 'dry') elSummaryStatus.classList.add('is-dry');
 }
 
+function showProgress(current, total) {
+  const safeTotal = Math.max(0, Number(total) || 0);
+  const safeCurrent = Math.min(safeTotal, Math.max(0, Number(current) || 0));
+  const pct = safeTotal > 0 ? Math.round((safeCurrent / safeTotal) * 100) : 0;
+  elProgressWrap.classList.remove('is-hidden');
+  elProgressText.textContent =
+    safeTotal > 0
+      ? 'Memproses ' + safeCurrent + ' / ' + safeTotal + ' baris...'
+      : 'Memindai baris checklist...';
+  elProgressBar.style.width = pct + '%';
+}
+
+function hideProgress() {
+  elProgressWrap.classList.add('is-hidden');
+  elProgressBar.style.width = '0%';
+}
+
 function updateSummaryNumbers(res) {
+  const remaining = Number(res.remainingUnset) || 0;
   elStatScanned.textContent = String(res.totalScanned || 0);
   elStatExecuted.textContent = String(res.setToExecuted || 0);
   elStatNotExecuted.textContent = String(res.setToNotExecuted || 0);
   elStatAlready.textContent = String(res.alreadySet || 0);
   elStatUntouched.textContent = String(res.untouchedCount || 0);
+  elStatRemainingUnset.textContent = String(remaining);
+  elStatRemainingUnset.classList.toggle('is-warn', remaining > 0);
 }
 
 function setBusy(busy) {
   isBusy = busy;
   elDryRunBtn.disabled = busy;
+  elClearDryRunBtn.disabled = busy;
   elExecuteBtn.disabled = busy;
   elScheduleFilter.disabled = busy;
   elAutoDetectShift.disabled = busy;
@@ -154,6 +181,35 @@ function sendTabMessage(tabId, message) {
   });
 }
 
+async function clearPreviewOnActiveTab(options) {
+  const opts = options || {};
+  try {
+    const tab = await queryActiveTab();
+    if (!tab || !tab.id) return;
+    if (!Storage.matchesUrlPattern(tab.url || '', currentSettings.targetUrlPattern)) {
+      if (opts.updateStatus) {
+        setStatus('URL tab aktif tidak cocok dengan pola target.', 'error');
+      }
+      return;
+    }
+    await injectContentScript(tab.id);
+    const res = await sendTabMessage(tab.id, { action: 'SCR_CLEAR_DRY_RUN' });
+    if (opts.updateStatus) {
+      const count = res && typeof res.clearedCount === 'number' ? res.clearedCount : 0;
+      setStatus(
+        count > 0
+          ? 'Pratinjau Dry Run dibersihkan (' + count + ' baris).'
+          : 'Tidak ada sorotan Dry Run yang aktif.',
+        ''
+      );
+    }
+  } catch (err) {
+    if (opts.updateStatus) {
+      setStatus(err && err.message ? err.message : 'Gagal membersihkan pratinjau Dry Run.', 'error');
+    }
+  }
+}
+
 async function triggerRun(isDryRun) {
   if (isBusy) return;
   setBusy(true);
@@ -181,6 +237,12 @@ async function triggerRun(isDryRun) {
       (isDryRun ? 'Menjalankan Dry Run (' : 'Menjalankan Execute (') + preset.label + ')...',
       isDryRun ? 'dry' : ''
     );
+
+    if (!isDryRun) {
+      showProgress(0, 0);
+    } else {
+      hideProgress();
+    }
 
     await injectContentScript(tab.id);
 
@@ -215,6 +277,7 @@ async function triggerRun(isDryRun) {
 
     const execCount = response.setToExecuted || 0;
     const notExecCount = response.setToNotExecuted || 0;
+    const remainingUnset = response.remainingUnset || 0;
 
     if (isDryRun) {
       setStatus(
@@ -222,8 +285,11 @@ async function triggerRun(isDryRun) {
         'dry'
       );
     } else {
+      const jumpNote = remainingUnset > 0
+        ? ' · ' + remainingUnset + ' Unset aktif tersisa (Auto-Jump)'
+        : ' · Semua unit aktif terisi';
       setStatus(
-        'Execute (' + preset.label + '): ' + execCount + ' Executed, ' + notExecCount + ' Not Executed' + expandedNote + '.',
+        'Execute (' + preset.label + '): ' + execCount + ' Executed, ' + notExecCount + ' Not Executed' + expandedNote + jumpNote + '.',
         'success'
       );
     }
@@ -239,11 +305,13 @@ async function triggerRun(isDryRun) {
       setToExecuted: execCount,
       setToNotExecuted: notExecCount,
       alreadySet: response.alreadySet || 0,
-      untouchedCount: response.untouchedCount || 0
+      untouchedCount: response.untouchedCount || 0,
+      remainingUnset: remainingUnset
     });
   } catch (err) {
     setStatus(err && err.message ? err.message : 'Terjadi kesalahan saat eksekusi.', 'error');
   } finally {
+    hideProgress();
     setBusy(false);
   }
 }
@@ -254,6 +322,16 @@ async function init() {
     if (manifest && manifest.version) {
       elVersion.textContent = 'v' + manifest.version;
     }
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener(function (message) {
+      if (!message || message.action !== 'SCR_EXECUTE_PROGRESS' || !message.payload) {
+        return;
+      }
+      if (!isBusy) return;
+      showProgress(message.payload.current, message.payload.total);
+    });
   }
 
   const initial = await Storage.getSettings();
@@ -268,6 +346,7 @@ async function init() {
       const nextOp = btn.getAttribute('data-operator');
       const updated = await Storage.saveSettings({ activeOperator: nextOp });
       renderSettings(updated, false);
+      clearPreviewOnActiveTab({ updateStatus: false });
     });
   }
 
@@ -277,17 +356,32 @@ async function init() {
     renderSettings(updated, false);
   });
 
-  elOptionsBtn.addEventListener('click', function () {
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.openOptionsPage) {
+  elOptionsBtn.addEventListener('click', async function () {
+    const opId = currentSettings.activeOperator || 'op1';
+    await Storage.saveSettings({ activeOperator: opId });
+    if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+      try {
+        const res = chrome.runtime.sendMessage({ action: 'SCR_OPEN_OPERATOR_TAB', operatorId: opId });
+        if (res && typeof res.catch === 'function') res.catch(function () {});
+      } catch (err) {
+        // ignore if options page not open yet
+      }
+    }
+    const targetPath = 'options.html?op=' + encodeURIComponent(opId);
+
+    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create && chrome.runtime && chrome.runtime.getURL) {
+      chrome.tabs.create({ url: chrome.runtime.getURL(targetPath) });
+    } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.openOptionsPage) {
       chrome.runtime.openOptionsPage();
     } else {
-      window.location.href = './options.html';
+      window.location.href = './' + targetPath;
     }
   });
 
   elScheduleFilter.addEventListener('change', async function () {
     hasManualShiftOverride = true;
     await Storage.saveSettings({ lastFilter: elScheduleFilter.value });
+    clearPreviewOnActiveTab({ updateStatus: false });
   });
 
   elAutoDetectShift.addEventListener('change', async function () {
@@ -297,10 +391,12 @@ async function init() {
       elScheduleFilter.value = Storage.detectActiveShiftByHour();
     }
     await Storage.saveSettings({ autoDetectShift: enabled });
+    clearPreviewOnActiveTab({ updateStatus: false });
   });
 
   elIncludeEveryShift.addEventListener('change', async function () {
     await Storage.saveSettings({ includeEveryShift: elIncludeEveryShift.checked });
+    clearPreviewOnActiveTab({ updateStatus: false });
   });
 
   elAutoShowAllRows.addEventListener('change', async function () {
@@ -309,6 +405,11 @@ async function init() {
 
   elDryRunBtn.addEventListener('click', function () {
     triggerRun(true);
+  });
+
+  elClearDryRunBtn.addEventListener('click', function () {
+    if (isBusy) return;
+    clearPreviewOnActiveTab({ updateStatus: true });
   });
 
   elExecuteBtn.addEventListener('click', function () {

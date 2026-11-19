@@ -21,6 +21,8 @@
     'night_shift'
   ]);
 
+  let jumpPulseTimer = null;
+
   function extractEquipmentTag(firstCell) {
     if (!firstCell) return '';
     const parts = [];
@@ -140,6 +142,12 @@
     return 0;
   }
 
+  function isRowVisible(row) {
+    if (!row || row.hidden) return false;
+    const style = window.getComputedStyle(row);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  }
+
   function scoreLengthOption(opt) {
     if (!opt) return -1;
     const val = String(opt.value || '').trim();
@@ -221,13 +229,31 @@
     return { expanded: expanded, expandedTo: expandedTo };
   }
 
-  function clearDryRunHighlights() {
+  function clearJumpHighlight() {
+    if (jumpPulseTimer) {
+      clearTimeout(jumpPulseTimer);
+      jumpPulseTimer = null;
+    }
+    const jumped = document.querySelectorAll('tr[data-task-id][data-scr-jump="true"]');
+    for (const row of jumped) {
+      row.removeAttribute('data-scr-jump');
+      row.style.outline = row.dataset.scrJumpPrevOutline || '';
+      row.style.outlineOffset = row.dataset.scrJumpPrevOffset || '';
+      row.style.backgroundColor = row.dataset.scrJumpPrevBg || '';
+      delete row.dataset.scrJumpPrevOutline;
+      delete row.dataset.scrJumpPrevOffset;
+      delete row.dataset.scrJumpPrevBg;
+    }
+  }
+
+  function clearDryRunPreview() {
     const badges = document.querySelectorAll('[data-scr-preview-badge="true"]');
     for (const badge of badges) {
       badge.remove();
     }
 
     const highlighted = document.querySelectorAll('tr[data-task-id][data-scr-dryrun="true"]');
+    const clearedCount = highlighted.length;
     for (const row of highlighted) {
       row.removeAttribute('data-scr-dryrun');
       row.style.outline = row.dataset.scrPrevOutline || '';
@@ -245,6 +271,9 @@
         delete el.dataset.scrPrevColor;
       }
     }
+
+    clearJumpHighlight();
+    return clearedCount;
   }
 
   function applyDryRunHighlight(row, targetState) {
@@ -289,8 +318,68 @@
     }
   }
 
+  function applyJumpPulse(row) {
+    if (!row) return;
+    clearJumpHighlight();
+
+    row.dataset.scrJumpPrevOutline = row.style.outline || '';
+    row.dataset.scrJumpPrevOffset = row.style.outlineOffset || '';
+    row.dataset.scrJumpPrevBg = row.style.backgroundColor || '';
+    row.setAttribute('data-scr-jump', 'true');
+
+    row.style.outline = '2px solid #f59e0b';
+    row.style.outlineOffset = '-2px';
+
+    if (typeof row.scrollIntoView === 'function') {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    if (typeof row.animate === 'function') {
+      try {
+        row.animate(
+          [
+            { backgroundColor: 'rgba(245, 158, 11, 0.28)', outlineColor: '#f59e0b' },
+            { backgroundColor: 'rgba(245, 158, 11, 0.06)', outlineColor: '#fbbf24' },
+            { backgroundColor: 'rgba(245, 158, 11, 0.28)', outlineColor: '#f59e0b' }
+          ],
+          { duration: 850, iterations: 3 }
+        );
+      } catch (err) {
+        // ignore animation unsupported
+      }
+    }
+
+    jumpPulseTimer = setTimeout(function () {
+      clearJumpHighlight();
+    }, 2700);
+  }
+
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function emitProgress(progressPayload) {
+    if (typeof window.__SCR_PROGRESS_CALLBACK__ === 'function') {
+      try {
+        window.__SCR_PROGRESS_CALLBACK__(progressPayload);
+      } catch (err) {
+        // ignore sandbox callback error
+      }
+    }
+
+    if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+      try {
+        const res = chrome.runtime.sendMessage({
+          action: 'SCR_EXECUTE_PROGRESS',
+          payload: progressPayload
+        });
+        if (res && typeof res.catch === 'function') {
+          res.catch(function () {});
+        }
+      } catch (err) {
+        // popup may have closed mid-run
+      }
+    }
   }
 
   async function transitionCheckbox(row, checkbox, currentState, targetState) {
@@ -312,6 +401,36 @@
     }
 
     return true;
+  }
+
+  function scanRemainingActiveUnset(equipmentMap) {
+    const rows = Array.from(document.querySelectorAll('tr[data-task-id]'));
+    let remainingCount = 0;
+    let firstUnsetRow = null;
+
+    for (const row of rows) {
+      if (!isRowVisible(row)) continue;
+      const firstCell = row.querySelector('td:nth-child(1)');
+      const tag = extractEquipmentTag(firstCell);
+      const equipState = tag ? equipmentMap[tag] : null;
+
+      // Strictly only active operator preset units (RUNNING or STANDBY)
+      if (equipState !== 'RUNNING' && equipState !== 'STANDBY') {
+        continue;
+      }
+
+      const checkbox = row.querySelector('input[type="checkbox"][id^="is_executed_"]');
+      if (!checkbox || checkbox.disabled) continue;
+
+      if (getCheckboxState(row, checkbox) === 'UNSET') {
+        remainingCount++;
+        if (!firstUnsetRow) {
+          firstUnsetRow = row;
+        }
+      }
+    }
+
+    return { remainingCount: remainingCount, firstUnsetRow: firstUnsetRow };
   }
 
   async function runChecklist(options) {
@@ -336,7 +455,7 @@
       const standbyExclusions = parseKeywordList(cfg.skipStandbyKeywords);
       const delayMs = Math.max(0, Number(cfg.clickDelayMs) >= 0 ? Number(cfg.clickDelayMs) : 150);
 
-      clearDryRunHighlights();
+      clearDryRunPreview();
 
       let paginationInfo = { expanded: false, expandedTo: null };
       if (autoShowAllRows) {
@@ -345,6 +464,8 @@
 
       const rows = Array.from(document.querySelectorAll('tr[data-task-id]'));
       const totalScanned = rows.length;
+      const plannedActions = [];
+      const plannedRowSet = new Set();
       let setToExecuted = 0;
       let setToNotExecuted = 0;
       let alreadySet = 0;
@@ -393,28 +514,85 @@
           firstMatchedRow = row;
         }
 
-        if (dryRun) {
-          applyDryRunHighlight(row, targetState);
-          if (targetState === 'EXECUTED') {
+        plannedRowSet.add(row);
+        plannedActions.push({
+          row: row,
+          checkbox: checkbox,
+          tag: tag,
+          currentState: currentState,
+          targetState: targetState
+        });
+      }
+
+      let remainingUnset = 0;
+
+      if (dryRun) {
+        for (const item of plannedActions) {
+          applyDryRunHighlight(item.row, item.targetState);
+          if (item.targetState === 'EXECUTED') {
             setToExecuted++;
           } else {
             setToNotExecuted++;
           }
-        } else {
-          await transitionCheckbox(row, checkbox, currentState, targetState);
-          if (targetState === 'EXECUTED') {
+        }
+
+        if (firstMatchedRow && typeof firstMatchedRow.scrollIntoView === 'function') {
+          firstMatchedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Count active Unset rows that are not part of the planned Dry Run batch
+        for (const row of rows) {
+          if (plannedRowSet.has(row) || !isRowVisible(row)) continue;
+          const firstCell = row.querySelector('td:nth-child(1)');
+          const tag = extractEquipmentTag(firstCell);
+          const equipState = tag ? equipmentMap[tag] : null;
+          if (equipState !== 'RUNNING' && equipState !== 'STANDBY') continue;
+          const checkbox = row.querySelector('input[type="checkbox"][id^="is_executed_"]');
+          if (!checkbox || checkbox.disabled) continue;
+          if (getCheckboxState(row, checkbox) === 'UNSET') {
+            remainingUnset++;
+          }
+        }
+      } else {
+        const totalToProcess = plannedActions.length;
+        let lastProgressSentAt = 0;
+
+        if (totalToProcess > 0) {
+          emitProgress({ current: 0, total: totalToProcess, done: false });
+          lastProgressSentAt = Date.now();
+        }
+
+        for (let i = 0; i < totalToProcess; i++) {
+          const item = plannedActions[i];
+          await transitionCheckbox(item.row, item.checkbox, item.currentState, item.targetState);
+          if (item.targetState === 'EXECUTED') {
             setToExecuted++;
           } else {
             setToNotExecuted++;
           }
+
           if (delayMs > 0) {
             await sleep(delayMs);
           }
-        }
-      }
 
-      if (dryRun && firstMatchedRow && typeof firstMatchedRow.scrollIntoView === 'function') {
-        firstMatchedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const completed = i + 1;
+          const now = Date.now();
+          if (completed === 1 || completed === totalToProcess || now - lastProgressSentAt >= 80) {
+            emitProgress({
+              current: completed,
+              total: totalToProcess,
+              tag: item.tag,
+              done: completed === totalToProcess
+            });
+            lastProgressSentAt = now;
+          }
+        }
+
+        const remainingInfo = scanRemainingActiveUnset(equipmentMap);
+        remainingUnset = remainingInfo.remainingCount;
+        if (remainingInfo.firstUnsetRow) {
+          applyJumpPulse(remainingInfo.firstUnsetRow);
+        }
       }
 
       return {
@@ -428,7 +606,8 @@
         setToExecuted: setToExecuted,
         setToNotExecuted: setToNotExecuted,
         alreadySet: alreadySet,
-        untouchedCount: untouchedCount
+        untouchedCount: untouchedCount,
+        remainingUnset: remainingUnset
       };
     } finally {
       window.__SCR_IS_RUNNING__ = false;
@@ -449,9 +628,9 @@
         return true;
       }
 
-      if (message.action === 'SCR_CLEAR_HIGHLIGHTS') {
-        clearDryRunHighlights();
-        sendResponse({ ok: true });
+      if (message.action === 'SCR_CLEAR_DRY_RUN' || message.action === 'SCR_CLEAR_HIGHLIGHTS') {
+        const clearedCount = clearDryRunPreview();
+        sendResponse({ ok: true, clearedCount: clearedCount });
         return false;
       }
 
