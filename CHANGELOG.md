@@ -2,6 +2,20 @@
 
 Semua perubahan penting pada **TPM Smart Checklist** dicatat dalam file ini.
 
+## [1.5.0] - 2026-11-19
+
+### Added
+- **Ikon Kustom "Smart + Checklist" (`icons/icon.svg`, `manifest.json`, `popup.html`, `options.html`)**: Desain vektor lencana centang ber-sparkle di header Popup & Options serta konfigurasi `icons` dan `action.default_icon` untuk ukuran `16/48/128px`.
+- **Global Debug Mode & Badge `DEBUG` (`storage.js`, `options.html`, `options.js`, `popup.html`, `popup.js`)**: Sakelar Debug Mode (default `OFF`) untuk memisahkan Mode Operasional Harian (tombol **Execute** lebar penuh 100%, auto-expand 300+ baris aktif otomatis di latar belakang, tanpa panel teknis) dengan Mode Debug (menampilkan Dry Run, Clear, metrik 6-kotak, aturan pengecualian, dan badge `DEBUG`).
+- **Auto-Close Popup & Modal In-Page Shadow DOM (`popup.js`, `content.js`)**: Popup otomatis menutup secara aman di dalam callback sukses `chrome.tabs.sendMessage`, lalu menjalankan alur 3 tahap terisolasi di dalam `#shadow-root` (`z-index: 2147483647`) pada halaman web TPM:
+  1. Konfirmasi Pra-Eksekusi (Operator, Shift, Every Shift; pintasan `Enter`/`Esc` + penjaga 0 baris & anti-duplikat).
+  2. Progres Langsung Terkunci (`Memproses X / Y baris...`).
+  3. Ringkasan Selesai ("Telah dilakukan Smart Checklist", jumlah unit Running/Standby, pengingat wajib tombol "Save" web TPM, serta tombol kondisional `Selesai` atau `Loncat ke Sisa (X)`).
+
+### Changed
+- **Penyeragaman Label Operator (`popup.html`, `popup.js`, `options.html`, `options.js`)**: Menghapus seluruh sub-label area (`Lapangan 1 (Ground)`, `Lapangan 2`, `Lapangan 3`) agar seragam menampilkan **Operator 1**, **Operator 2**, dan **Operator 3**.
+- Pembaruan versi ekstensi ke `v1.5.0` pada `manifest.json`, `popup.html`, `options.html`, dan `README.txt`.
+
 ## [1.4.0] - 2026-11-18
 
 ### Added

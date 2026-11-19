@@ -1,8 +1,13 @@
 {
   "manifest_version": 3,
   "name": "TPM Smart Checklist",
-  "version": "1.4.0",
-  "description": "TPM Smart Checklist untuk Operator 1–3 dengan engine toggle 3-state web TPM (Unset → Executed → Not Executed), Dry Run berkode warna + Clear Preview, live progress, Auto-Jump ke sisa Unset, dan auto-detect shift.",
+  "version": "1.5.0",
+  "description": "TPM Smart Checklist untuk Operator 1–3 pada web TPM dengan modal konfirmasi terisolasi (Shadow DOM), Debug Mode toggle, dan engine toggle 3-state.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
     "storage",
     "activeTab",
@@ -10,7 +15,12 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "TPM Smart Checklist"
+    "default_title": "TPM Smart Checklist",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "options_page": "options.html"
 }

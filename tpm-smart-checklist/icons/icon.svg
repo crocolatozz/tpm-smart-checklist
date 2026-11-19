@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
+  <defs>
+    <linearGradient id="bg-emerald" x1="12" y1="12" x2="116" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+    <linearGradient id="sparkle-gold" x1="74" y1="14" x2="114" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded Square Badge with Diagonal Emerald Gradient & Subtle Lighter Rim -->
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bg-emerald)" stroke="#34D399" stroke-width="3.5"/>
+  <!-- Bold White Checkmark -->
+  <path d="M31 67L51 87L93 36" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 4-Point Smart Sparkle with Crisp White Outline -->
+  <path d="M94 13L99.2 28.8L115 34L99.2 39.2L94 55L88.8 39.2L73 34L88.8 28.8L94 13Z" fill="url(#sparkle-gold)" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round"/>
+</svg>

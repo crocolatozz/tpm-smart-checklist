@@ -6,6 +6,8 @@
   }
   window.__SCR_CONTENT_LOADED__ = true;
 
+  const MODAL_HOST_ID = 'tpm-smart-checklist-modal-host';
+
   const SHIFT_MATCHERS = {
     morning_shift: /morning_shift|morning\s+shift/i,
     afternoon_shift: /afternoon_shift|afternoon\s+shift/i,
@@ -22,6 +24,7 @@
   ]);
 
   let jumpPulseTimer = null;
+  let activeModalState = null;
 
   function extractEquipmentTag(firstCell) {
     if (!firstCell) return '';
@@ -146,6 +149,17 @@
     if (!row || row.hidden) return false;
     const style = window.getComputedStyle(row);
     return style.display !== 'none' && style.visibility !== 'hidden';
+  }
+
+  function countConfiguredUnits(equipmentMap) {
+    let running = 0;
+    let standby = 0;
+    const map = equipmentMap && typeof equipmentMap === 'object' ? equipmentMap : {};
+    for (const val of Object.values(map)) {
+      if (val === 'RUNNING') running++;
+      else if (val === 'STANDBY') standby++;
+    }
+    return { running: running, standby: standby };
   }
 
   function scoreLengthOption(opt) {
@@ -351,14 +365,35 @@
 
     jumpPulseTimer = setTimeout(function () {
       clearJumpHighlight();
-    }, 2700);
+    }, 2800);
   }
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  function emitProgress(progressPayload) {
+  function safeRuntimeSend(message) {
+    if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+      try {
+        const res = chrome.runtime.sendMessage(message);
+        if (res && typeof res.catch === 'function') {
+          res.catch(function () {});
+        }
+      } catch (err) {
+        // popup may have closed mid-run
+      }
+    }
+  }
+
+  function emitProgress(progressPayload, localCallback) {
+    if (typeof localCallback === 'function') {
+      try {
+        localCallback(progressPayload);
+      } catch (err) {
+        // ignore
+      }
+    }
+
     if (typeof window.__SCR_PROGRESS_CALLBACK__ === 'function') {
       try {
         window.__SCR_PROGRESS_CALLBACK__(progressPayload);
@@ -367,19 +402,10 @@
       }
     }
 
-    if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
-      try {
-        const res = chrome.runtime.sendMessage({
-          action: 'SCR_EXECUTE_PROGRESS',
-          payload: progressPayload
-        });
-        if (res && typeof res.catch === 'function') {
-          res.catch(function () {});
-        }
-      } catch (err) {
-        // popup may have closed mid-run
-      }
-    }
+    safeRuntimeSend({
+      action: 'SCR_EXECUTE_PROGRESS',
+      payload: progressPayload
+    });
   }
 
   async function transitionCheckbox(row, checkbox, currentState, targetState) {
@@ -433,7 +459,7 @@
     return { remainingCount: remainingCount, firstUnsetRow: firstUnsetRow };
   }
 
-  async function runChecklist(options) {
+  async function runChecklist(options, onProgressLocal) {
     if (window.__SCR_IS_RUNNING__) {
       return {
         ok: false,
@@ -450,6 +476,7 @@
       const scheduleFilter = String(cfg.scheduleFilter || 'all');
       const includeEveryShift = Boolean(cfg.includeEveryShift);
       const autoShowAllRows = cfg.autoShowAllRows !== false;
+      const autoJumpOnFinish = cfg.autoJumpOnFinish !== false;
       const equipmentMap = cfg.equipmentMap && typeof cfg.equipmentMap === 'object' ? cfg.equipmentMap : {};
       const runningExclusions = parseKeywordList(cfg.skipRunningKeywords);
       const standbyExclusions = parseKeywordList(cfg.skipStandbyKeywords);
@@ -485,7 +512,6 @@
 
         const equipState = tag ? equipmentMap[tag] : null;
         if (equipState !== 'RUNNING' && equipState !== 'STANDBY') {
-          // IGNORE or unlisted in active operator preset -> leave untouched
           untouchedCount++;
           continue;
         }
@@ -525,6 +551,7 @@
       }
 
       let remainingUnset = 0;
+      let firstRemainingUnsetRow = null;
 
       if (dryRun) {
         for (const item of plannedActions) {
@@ -540,7 +567,6 @@
           firstMatchedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
-        // Count active Unset rows that are not part of the planned Dry Run batch
         for (const row of rows) {
           if (plannedRowSet.has(row) || !isRowVisible(row)) continue;
           const firstCell = row.querySelector('td:nth-child(1)');
@@ -557,10 +583,8 @@
         const totalToProcess = plannedActions.length;
         let lastProgressSentAt = 0;
 
-        if (totalToProcess > 0) {
-          emitProgress({ current: 0, total: totalToProcess, done: false });
-          lastProgressSentAt = Date.now();
-        }
+        emitProgress({ current: 0, total: totalToProcess, done: false }, onProgressLocal);
+        lastProgressSentAt = Date.now();
 
         for (let i = 0; i < totalToProcess; i++) {
           const item = plannedActions[i];
@@ -578,20 +602,24 @@
           const completed = i + 1;
           const now = Date.now();
           if (completed === 1 || completed === totalToProcess || now - lastProgressSentAt >= 80) {
-            emitProgress({
-              current: completed,
-              total: totalToProcess,
-              tag: item.tag,
-              done: completed === totalToProcess
-            });
+            emitProgress(
+              {
+                current: completed,
+                total: totalToProcess,
+                tag: item.tag,
+                done: completed === totalToProcess
+              },
+              onProgressLocal
+            );
             lastProgressSentAt = now;
           }
         }
 
         const remainingInfo = scanRemainingActiveUnset(equipmentMap);
         remainingUnset = remainingInfo.remainingCount;
-        if (remainingInfo.firstUnsetRow) {
-          applyJumpPulse(remainingInfo.firstUnsetRow);
+        firstRemainingUnsetRow = remainingInfo.firstUnsetRow;
+        if (autoJumpOnFinish && firstRemainingUnsetRow) {
+          applyJumpPulse(firstRemainingUnsetRow);
         }
       }
 
@@ -607,16 +635,837 @@
         setToNotExecuted: setToNotExecuted,
         alreadySet: alreadySet,
         untouchedCount: untouchedCount,
-        remainingUnset: remainingUnset
+        remainingUnset: remainingUnset,
+        firstRemainingUnsetRow: firstRemainingUnsetRow
       };
     } finally {
       window.__SCR_IS_RUNNING__ = false;
     }
   }
 
+  /* ==================== ISOLATED SHADOW DOM MODAL ==================== */
+
+  function createShadowSvg(name, size) {
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    const px = Number(size) || 18;
+    svg.setAttribute('width', String(px));
+    svg.setAttribute('height', String(px));
+    svg.setAttribute('viewBox', name === 'smart-logo' ? '0 0 128 128' : '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+
+    if (name === 'smart-logo') {
+      const bg = document.createElementNS(SVG_NS, 'rect');
+      bg.setAttribute('x', '8');
+      bg.setAttribute('y', '8');
+      bg.setAttribute('width', '112');
+      bg.setAttribute('height', '112');
+      bg.setAttribute('rx', '28');
+      bg.setAttribute('fill', '#2563eb');
+      svg.appendChild(bg);
+
+      const check = document.createElementNS(SVG_NS, 'path');
+      check.setAttribute('d', 'M32 68 L52 88 L88 48');
+      check.setAttribute('stroke', '#ffffff');
+      check.setAttribute('stroke-width', '14');
+      check.setAttribute('stroke-linecap', 'round');
+      check.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(check);
+
+      const spark = document.createElementNS(SVG_NS, 'path');
+      spark.setAttribute('d', 'M94 14 L99.5 28.5 L114 34 L99.5 39.5 L94 54 L88.5 39.5 L74 34 L88.5 28.5 Z');
+      spark.setAttribute('fill', '#fbbf24');
+      spark.setAttribute('stroke', '#ffffff');
+      spark.setAttribute('stroke-width', '2.5');
+      spark.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(spark);
+      return svg;
+    }
+
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+
+    const pathsByIcon = {
+      'check-circle': [
+        { tag: 'path', attrs: { d: 'M22 11.08V12a10 10 0 1 1-5.93-9.14' } },
+        { tag: 'path', attrs: { d: 'm9 11 3 3L22 4' } }
+      ],
+      'alert-triangle': [
+        { tag: 'path', attrs: { d: 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z' } },
+        { tag: 'path', attrs: { d: 'M12 9v4' } },
+        { tag: 'path', attrs: { d: 'M12 17h.01' } }
+      ],
+      info: [
+        { tag: 'circle', attrs: { cx: '12', cy: '12', r: '10' } },
+        { tag: 'path', attrs: { d: 'M12 16v-4' } },
+        { tag: 'path', attrs: { d: 'M12 8h.01' } }
+      ],
+      'arrow-right': [
+        { tag: 'path', attrs: { d: 'M5 12h14' } },
+        { tag: 'path', attrs: { d: 'm12 5 7 7-7 7' } }
+      ]
+    };
+
+    const defs = pathsByIcon[name] || [];
+    for (const def of defs) {
+      const node = document.createElementNS(SVG_NS, def.tag);
+      for (const [k, v] of Object.entries(def.attrs)) {
+        node.setAttribute(k, v);
+      }
+      svg.appendChild(node);
+    }
+    return svg;
+  }
+
+  function getShadowModalCss() {
+    return `
+      :host {
+        all: initial;
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: block;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      }
+
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+
+      .tpm-backdrop {
+        --bg-card: #ffffff;
+        --bg-subtle: #f8fafc;
+        --bg-inset: #eef2f6;
+        --border-color: #dce3ec;
+        --border-strong: #c4cedb;
+        --text-primary: #0f172a;
+        --text-secondary: #475569;
+        --text-muted: #64748b;
+        --accent: #2563eb;
+        --accent-hover: #1d4ed8;
+        --accent-soft: rgba(37, 99, 235, 0.12);
+        --green: #16a34a;
+        --green-soft: rgba(22, 163, 74, 0.14);
+        --amber: #b45309;
+        --amber-bg: #fffbeb;
+        --amber-border: #fcd34d;
+        --amber-soft: rgba(217, 119, 6, 0.16);
+
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(2px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+      }
+
+      .tpm-backdrop[data-theme="dark"] {
+        --bg-card: #111827;
+        --bg-subtle: #161f30;
+        --bg-inset: #0d1422;
+        --border-color: rgba(255, 255, 255, 0.12);
+        --border-strong: rgba(255, 255, 255, 0.2);
+        --text-primary: #f1f5f9;
+        --text-secondary: #cbd5e1;
+        --text-muted: #94a3b8;
+        --accent: #3b82f6;
+        --accent-hover: #2563eb;
+        --accent-soft: rgba(59, 130, 246, 0.18);
+        --green: #22c55e;
+        --green-soft: rgba(34, 197, 94, 0.18);
+        --amber: #fbbf24;
+        --amber-bg: rgba(245, 158, 11, 0.14);
+        --amber-border: rgba(245, 158, 11, 0.45);
+        --amber-soft: rgba(245, 158, 11, 0.18);
+      }
+
+      .tpm-modal {
+        width: 100%;
+        max-width: 430px;
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border-strong);
+        border-radius: 14px;
+        box-shadow: 0 24px 56px rgba(0, 0, 0, 0.42);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        animation: tpmPop 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      @keyframes tpmPop {
+        from { opacity: 0; transform: scale(0.97) translateY(4px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+
+      .tpm-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .tpm-icon-badge {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .tpm-icon-badge.is-success {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+
+      .tpm-icon-badge.is-warn {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+
+      .tpm-title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 700;
+        line-height: 1.3;
+        color: var(--text-primary);
+      }
+
+      .tpm-sub {
+        margin: 2px 0 0;
+        font-size: 12.5px;
+        color: var(--text-muted);
+      }
+
+      .tpm-info-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-subtle);
+      }
+
+      .tpm-info-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 13px;
+      }
+
+      .tpm-info-key {
+        color: var(--text-muted);
+        font-weight: 500;
+      }
+
+      .tpm-info-val {
+        color: var(--text-primary);
+        font-weight: 700;
+        text-align: right;
+      }
+
+      .tpm-unit-chips {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .tpm-unit-chip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 12px;
+        border-radius: 9px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-subtle);
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+
+      .tpm-unit-chip.is-running .tpm-chip-num {
+        color: var(--green);
+      }
+
+      .tpm-unit-chip.is-standby .tpm-chip-num {
+        color: var(--amber);
+      }
+
+      .tpm-chip-num {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .tpm-progress-box {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-subtle);
+      }
+
+      .tpm-progress-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-primary);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .tpm-progress-tag {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 11.5px;
+        color: var(--text-muted);
+        min-height: 16px;
+      }
+
+      .tpm-progress-track {
+        width: 100%;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--bg-inset);
+        overflow: hidden;
+      }
+
+      .tpm-progress-fill {
+        width: 0%;
+        height: 100%;
+        border-radius: 999px;
+        background: var(--accent);
+        transition: width 110ms linear;
+      }
+
+      .tpm-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        padding: 10px 12px;
+        border-radius: 9px;
+        border: 1px solid var(--amber-border);
+        background: var(--amber-bg);
+        color: var(--amber);
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1.45;
+      }
+
+      .tpm-banner svg {
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+
+      .tpm-remain-note {
+        font-size: 12.5px;
+        color: var(--text-secondary);
+        line-height: 1.45;
+        margin: 0;
+      }
+
+      .tpm-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 2px;
+      }
+
+      .tpm-btn {
+        height: 36px;
+        padding: 0 15px;
+        border-radius: 8px;
+        border: 1px solid var(--border-strong);
+        background: var(--bg-subtle);
+        color: var(--text-primary);
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: background-color 140ms ease, border-color 140ms ease;
+      }
+
+      .tpm-btn:hover {
+        background: var(--bg-inset);
+      }
+
+      .tpm-btn:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      .tpm-btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #ffffff;
+      }
+
+      .tpm-btn-primary:hover {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
+      }
+    `;
+  }
+
+  function lockBackgroundScroll() {
+    const htmlOverflow = document.documentElement ? document.documentElement.style.overflow : '';
+    const bodyOverflow = document.body ? document.body.style.overflow : '';
+    if (document.documentElement) document.documentElement.style.overflow = 'hidden';
+    if (document.body) document.body.style.overflow = 'hidden';
+    return function restore() {
+      if (document.documentElement) document.documentElement.style.overflow = htmlOverflow;
+      if (document.body) document.body.style.overflow = bodyOverflow;
+    };
+  }
+
+  function closeActiveModal() {
+    if (!activeModalState) return;
+    if (typeof activeModalState.restoreScroll === 'function') {
+      activeModalState.restoreScroll();
+      activeModalState.restoreScroll = null;
+    }
+    if (typeof activeModalState.removeKeyListener === 'function') {
+      activeModalState.removeKeyListener();
+      activeModalState.removeKeyListener = null;
+    }
+    if (activeModalState.host && activeModalState.host.parentNode) {
+      activeModalState.host.parentNode.removeChild(activeModalState.host);
+    }
+    activeModalState = null;
+  }
+
+  function openWorkflowModal(payload) {
+    if (activeModalState || document.getElementById(MODAL_HOST_ID)) {
+      return { ok: true, alreadyOpen: true };
+    }
+
+    const host = document.createElement('div');
+    host.id = MODAL_HOST_ID;
+    const shadow = host.attachShadow({ mode: 'open' });
+
+    const styleEl = document.createElement('style');
+    styleEl.textContent = getShadowModalCss();
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'tpm-backdrop';
+    backdrop.setAttribute('data-theme', payload.theme === 'dark' ? 'dark' : 'light');
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+
+    const modal = document.createElement('div');
+    modal.className = 'tpm-modal';
+    backdrop.appendChild(modal);
+    shadow.appendChild(styleEl);
+    shadow.appendChild(backdrop);
+
+    document.documentElement.appendChild(host);
+
+    const restoreScroll = lockBackgroundScroll();
+
+    const state = {
+      host: host,
+      modal: modal,
+      backdrop: backdrop,
+      stage: 'confirm',
+      restoreScroll: restoreScroll,
+      removeKeyListener: null,
+      onEnter: null,
+      onEscape: null
+    };
+    activeModalState = state;
+
+    function handleKeyDown(e) {
+      if (!activeModalState) return;
+      if (state.stage === 'progress') {
+        if (e.key === 'Escape' || e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        return;
+      }
+      if (e.key === 'Escape' && typeof state.onEscape === 'function') {
+        e.preventDefault();
+        e.stopPropagation();
+        state.onEscape();
+      } else if (e.key === 'Enter' && typeof state.onEnter === 'function') {
+        e.preventDefault();
+        e.stopPropagation();
+        state.onEnter();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    state.removeKeyListener = function () {
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+
+    backdrop.addEventListener('click', function (e) {
+      if (e.target === backdrop && state.stage !== 'progress' && typeof state.onEscape === 'function') {
+        state.onEscape();
+      }
+    });
+
+    function renderWarningNoRows() {
+      state.stage = 'warning';
+      modal.replaceChildren();
+
+      const header = document.createElement('div');
+      header.className = 'tpm-header';
+      const iconBox = document.createElement('div');
+      iconBox.className = 'tpm-icon-badge is-warn';
+      iconBox.appendChild(createShadowSvg('alert-triangle', 20));
+      const titleWrap = document.createElement('div');
+      const title = document.createElement('h2');
+      title.className = 'tpm-title';
+      title.textContent = 'Tabel Checklist Tidak Ditemukan';
+      const sub = document.createElement('p');
+      sub.className = 'tpm-sub';
+      sub.textContent = 'Tidak ada baris checklist (0 baris) pada halaman web TPM ini.';
+      titleWrap.appendChild(title);
+      titleWrap.appendChild(sub);
+      header.appendChild(iconBox);
+      header.appendChild(titleWrap);
+
+      const note = document.createElement('p');
+      note.className = 'tpm-remain-note';
+      note.textContent = 'Pastikan Anda membuka halaman daftar checklist web TPM yang sudah menampilkan tabel equipment sebelum menjalankan Smart Checklist.';
+
+      const actions = document.createElement('div');
+      actions.className = 'tpm-actions';
+      const okBtn = document.createElement('button');
+      okBtn.type = 'button';
+      okBtn.className = 'tpm-btn tpm-btn-primary';
+      okBtn.textContent = 'Tutup';
+      okBtn.addEventListener('click', closeActiveModal);
+      actions.appendChild(okBtn);
+
+      modal.appendChild(header);
+      modal.appendChild(note);
+      modal.appendChild(actions);
+
+      state.onEscape = closeActiveModal;
+      state.onEnter = closeActiveModal;
+      okBtn.focus();
+    }
+
+    function renderStage3(result) {
+      state.stage = 'completion';
+      if (typeof state.restoreScroll === 'function') {
+        state.restoreScroll();
+        state.restoreScroll = null;
+      }
+      modal.replaceChildren();
+
+      const unitCounts = countConfiguredUnits(payload.equipmentMap);
+      const remainingCount = Number(result.remainingUnset) || 0;
+      const firstUnsetRow = result.firstRemainingUnsetRow || null;
+
+      const header = document.createElement('div');
+      header.className = 'tpm-header';
+      const iconBox = document.createElement('div');
+      iconBox.className = 'tpm-icon-badge is-success';
+      iconBox.appendChild(createShadowSvg('check-circle', 20));
+      const titleWrap = document.createElement('div');
+      const title = document.createElement('h2');
+      title.className = 'tpm-title';
+      title.textContent = 'Telah dilakukan Smart Checklist';
+      const sub = document.createElement('p');
+      sub.className = 'tpm-sub';
+      sub.textContent = (payload.operatorLabel || 'Operator 1') + ' · ' + (payload.scheduleLabel || 'Semua Jadwal');
+      titleWrap.appendChild(title);
+      titleWrap.appendChild(sub);
+      header.appendChild(iconBox);
+      header.appendChild(titleWrap);
+
+      const unitChips = document.createElement('div');
+      unitChips.className = 'tpm-unit-chips';
+
+      const runningChip = document.createElement('div');
+      runningChip.className = 'tpm-unit-chip is-running';
+      const runLbl = document.createElement('span');
+      runLbl.textContent = 'Unit Running';
+      const runVal = document.createElement('span');
+      runVal.className = 'tpm-chip-num';
+      runVal.textContent = String(unitCounts.running);
+      runningChip.appendChild(runLbl);
+      runningChip.appendChild(runVal);
+
+      const standbyChip = document.createElement('div');
+      standbyChip.className = 'tpm-unit-chip is-standby';
+      const stbyLbl = document.createElement('span');
+      stbyLbl.textContent = 'Unit Standby';
+      const stbyVal = document.createElement('span');
+      stbyVal.className = 'tpm-chip-num';
+      stbyVal.textContent = String(unitCounts.standby);
+      standbyChip.appendChild(stbyLbl);
+      standbyChip.appendChild(stbyVal);
+
+      unitChips.appendChild(runningChip);
+      unitChips.appendChild(standbyChip);
+
+      const banner = document.createElement('div');
+      banner.className = 'tpm-banner';
+      banner.appendChild(createShadowSvg('alert-triangle', 16));
+      const bannerText = document.createElement('span');
+      bannerText.textContent =
+        'Operator tetap wajib menekan tombol "Save" bawaan web TPM untuk menyimpan perubahan secara permanen.';
+      banner.appendChild(bannerText);
+
+      const remainNote = document.createElement('p');
+      remainNote.className = 'tpm-remain-note';
+
+      const actions = document.createElement('div');
+      actions.className = 'tpm-actions';
+
+      if (remainingCount === 0) {
+        remainNote.textContent = 'Seluruh task unit aktif (Running / Standby) pada tampilan saat ini sudah terisi.';
+        const doneBtn = document.createElement('button');
+        doneBtn.type = 'button';
+        doneBtn.className = 'tpm-btn tpm-btn-primary';
+        doneBtn.textContent = 'Selesai';
+        doneBtn.addEventListener('click', closeActiveModal);
+        actions.appendChild(doneBtn);
+
+        state.onEscape = closeActiveModal;
+        state.onEnter = closeActiveModal;
+
+        modal.appendChild(header);
+        modal.appendChild(unitChips);
+        modal.appendChild(banner);
+        modal.appendChild(remainNote);
+        modal.appendChild(actions);
+        doneBtn.focus();
+      } else {
+        remainNote.textContent =
+          'Masih terdapat ' + remainingCount + ' baris unit aktif (Running / Standby) yang berstatus Unset.';
+
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'tpm-btn';
+        closeBtn.textContent = 'Tutup';
+        closeBtn.addEventListener('click', closeActiveModal);
+
+        function jumpToFirstRemaining() {
+          closeActiveModal();
+          if (firstUnsetRow) {
+            applyJumpPulse(firstUnsetRow);
+          }
+        }
+
+        const jumpBtn = document.createElement('button');
+        jumpBtn.type = 'button';
+        jumpBtn.className = 'tpm-btn tpm-btn-primary';
+        jumpBtn.appendChild(document.createTextNode('Loncat ke Sisa (' + remainingCount + ')'));
+        jumpBtn.appendChild(createShadowSvg('arrow-right', 15));
+        jumpBtn.addEventListener('click', jumpToFirstRemaining);
+
+        actions.appendChild(closeBtn);
+        actions.appendChild(jumpBtn);
+
+        state.onEscape = closeActiveModal;
+        state.onEnter = jumpToFirstRemaining;
+
+        modal.appendChild(header);
+        modal.appendChild(unitChips);
+        modal.appendChild(banner);
+        modal.appendChild(remainNote);
+        modal.appendChild(actions);
+        jumpBtn.focus();
+      }
+    }
+
+    async function startStage2Execution() {
+      state.stage = 'progress';
+      state.onEscape = null;
+      state.onEnter = null;
+      modal.replaceChildren();
+
+      const header = document.createElement('div');
+      header.className = 'tpm-header';
+      header.appendChild(createShadowSvg('smart-logo', 36));
+      const titleWrap = document.createElement('div');
+      const title = document.createElement('h2');
+      title.className = 'tpm-title';
+      title.textContent = 'Menjalankan Smart Checklist...';
+      const sub = document.createElement('p');
+      sub.className = 'tpm-sub';
+      sub.textContent = 'Mohon tunggu, sedang memperbarui status checkbox web TPM.';
+      titleWrap.appendChild(title);
+      titleWrap.appendChild(sub);
+      header.appendChild(titleWrap);
+
+      const progBox = document.createElement('div');
+      progBox.className = 'tpm-progress-box';
+      const progLabel = document.createElement('div');
+      progLabel.className = 'tpm-progress-label';
+      progLabel.textContent = 'Memindai baris checklist...';
+      const progTrack = document.createElement('div');
+      progTrack.className = 'tpm-progress-track';
+      const progFill = document.createElement('div');
+      progFill.className = 'tpm-progress-fill';
+      progTrack.appendChild(progFill);
+      const progTag = document.createElement('div');
+      progTag.className = 'tpm-progress-tag';
+      progTag.textContent = '';
+
+      progBox.appendChild(progLabel);
+      progBox.appendChild(progTrack);
+      progBox.appendChild(progTag);
+
+      modal.appendChild(header);
+      modal.appendChild(progBox);
+
+      const result = await runChecklist(
+        {
+          ...payload,
+          dryRun: false,
+          autoJumpOnFinish: false
+        },
+        function (prog) {
+          const total = Math.max(0, Number(prog.total) || 0);
+          const current = Math.min(total, Math.max(0, Number(prog.current) || 0));
+          const pct = total > 0 ? Math.round((current / total) * 100) : 100;
+          progLabel.textContent =
+            total > 0
+              ? 'Memproses ' + current + ' / ' + total + ' baris...'
+              : 'Memeriksa baris checklist...';
+          progFill.style.width = pct + '%';
+          if (prog.tag) {
+            progTag.textContent = 'Equipment: ' + prog.tag;
+          }
+        }
+      );
+
+      if (!result || !result.ok) {
+        closeActiveModal();
+        return;
+      }
+
+      if ((result.totalScanned || 0) === 0) {
+        renderWarningNoRows();
+        return;
+      }
+
+      safeRuntimeSend({
+        action: 'SCR_WORKFLOW_COMPLETE',
+        payload: {
+          timestamp: new Date().toISOString(),
+          operatorId: payload.operatorId || 'op1',
+          operatorLabel: payload.operatorLabel || 'Operator 1',
+          mode: 'Execute',
+          scheduleFilter: payload.scheduleFilter || 'all',
+          includeEveryShift: Boolean(payload.includeEveryShift),
+          totalScanned: result.totalScanned,
+          setToExecuted: result.setToExecuted,
+          setToNotExecuted: result.setToNotExecuted,
+          alreadySet: result.alreadySet,
+          untouchedCount: result.untouchedCount,
+          remainingUnset: result.remainingUnset
+        }
+      });
+
+      renderStage3(result);
+    }
+
+    function renderStage1Confirmation() {
+      state.stage = 'confirm';
+      modal.replaceChildren();
+
+      const header = document.createElement('div');
+      header.className = 'tpm-header';
+      header.appendChild(createShadowSvg('smart-logo', 36));
+      const titleWrap = document.createElement('div');
+      const title = document.createElement('h2');
+      title.className = 'tpm-title';
+      title.textContent = 'Konfirmasi Smart Checklist';
+      const sub = document.createElement('p');
+      sub.className = 'tpm-sub';
+      sub.textContent = 'Periksa operator dan jadwal sebelum mengisi checklist web TPM.';
+      titleWrap.appendChild(title);
+      titleWrap.appendChild(sub);
+      header.appendChild(titleWrap);
+
+      const grid = document.createElement('div');
+      grid.className = 'tpm-info-grid';
+
+      const rowsData = [
+        { k: 'Operator', v: payload.operatorLabel || 'Operator 1' },
+        { k: 'Shift / Jadwal', v: payload.scheduleLabel || payload.scheduleFilter || 'Semua Jadwal' },
+        { k: 'Task Every Shift', v: payload.includeEveryShift ? 'Disertakan' : 'Tidak disertakan' }
+      ];
+
+      for (const item of rowsData) {
+        const r = document.createElement('div');
+        r.className = 'tpm-info-row';
+        const k = document.createElement('span');
+        k.className = 'tpm-info-key';
+        k.textContent = item.k;
+        const v = document.createElement('span');
+        v.className = 'tpm-info-val';
+        v.textContent = item.v;
+        r.appendChild(k);
+        r.appendChild(v);
+        grid.appendChild(r);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'tpm-actions';
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'tpm-btn';
+      cancelBtn.textContent = 'Batal';
+      cancelBtn.addEventListener('click', closeActiveModal);
+
+      const confirmBtn = document.createElement('button');
+      confirmBtn.type = 'button';
+      confirmBtn.className = 'tpm-btn tpm-btn-primary';
+      confirmBtn.textContent = 'Ya, Jalankan';
+      confirmBtn.addEventListener('click', startStage2Execution);
+
+      actions.appendChild(cancelBtn);
+      actions.appendChild(confirmBtn);
+
+      modal.appendChild(header);
+      modal.appendChild(grid);
+      modal.appendChild(actions);
+
+      state.onEscape = closeActiveModal;
+      state.onEnter = startStage2Execution;
+      confirmBtn.focus();
+    }
+
+    const initialRowCount = document.querySelectorAll('tr[data-task-id]').length;
+    if (initialRowCount === 0) {
+      renderWarningNoRows();
+    } else {
+      renderStage1Confirmation();
+    }
+
+    return { ok: true, opened: true };
+  }
+
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
       if (!message || typeof message !== 'object') return false;
+
+      if (message.action === 'SCR_START_WORKFLOW') {
+        const res = openWorkflowModal(message.payload || {});
+        sendResponse(res);
+        return false;
+      }
 
       if (message.action === 'SCR_DRY_RUN' || message.action === 'SCR_EXECUTE') {
         runChecklist({

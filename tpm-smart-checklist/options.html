@@ -10,16 +10,26 @@
   <div class="options-container">
     <header class="options-header">
       <div class="options-title-group">
-        <span class="brand-mark" data-icon="clipboard-check" data-size="18"></span>
+        <img src="./icons/icon.svg" alt="TPM Smart Checklist" class="brand-logo is-options-logo" width="34" height="34" />
         <div>
           <h1 class="options-title">TPM Smart Checklist</h1>
-          <div class="options-subtitle">Manajemen Equipment Operator 1–3 &amp; Aturan Pengecualian Tugas</div>
+          <div class="options-subtitle debug-only">Manajemen Equipment Operator 1–3 &amp; Aturan Pengecualian Tugas</div>
         </div>
-        <span id="options-version" class="badge-version">v1.4.0</span>
+        <span id="options-version" class="badge-version">v1.5.0</span>
+        <span id="options-debug-badge" class="debug-badge is-hidden"></span>
       </div>
 
       <div class="header-actions">
         <span id="save-toast" class="save-toast">Tersimpan</span>
+        <label
+          class="debug-toggle-pill"
+          for="debug-mode-toggle"
+          title="Aktifkan Debug Mode untuk melihat Dry Run, metrik teknis, dan aturan pengecualian"
+        >
+          <input id="debug-mode-toggle" type="checkbox" class="debug-toggle-input" />
+          <span class="debug-toggle-track" aria-hidden="true"></span>
+          <span>Debug Mode</span>
+        </label>
         <button
           id="options-theme-btn"
           type="button"
@@ -29,8 +39,8 @@
       </div>
     </header>
 
-    <!-- Task Exclusion Settings -->
-    <section class="card">
+    <!-- Task Exclusion Settings (Debug Mode Only) -->
+    <section id="exclusion-rules-section" class="card debug-only">
       <div class="card-head">
         <div>
           <h2 class="card-title">Aturan Pengecualian Tugas (Global Across Operators)</h2>
@@ -69,8 +79,8 @@
     <section class="card">
       <div class="card-head">
         <div>
-          <h2 class="card-title">Multi-Operator Equipment Manager</h2>
-          <p class="card-desc">
+          <h2 class="card-title">Manajemen Equipment Operator</h2>
+          <p class="card-desc debug-only">
             Kelola status tag tiap operator (RUNNING, STANDBY, IGNORE) dan tukar cepat pasangan unit A↔B.
           </p>
         </div>
@@ -88,7 +98,6 @@
             Operator 3 (<span id="op3-total">17</span>)
           </button>
         </div>
-        <span id="op-area-badge" class="op-area-badge">LAPANGAN 1 (GROUND)</span>
       </div>
 
       <div class="equip-toolbar">
@@ -104,7 +113,7 @@
           />
         </div>
 
-        <div class="equip-actions">
+        <div class="equip-actions debug-only">
           <button id="scrape-tab-btn" type="button" class="btn btn-sm"></button>
           <button id="bulk-paste-btn" type="button" class="btn btn-sm"></button>
           <button id="reset-default-btn" type="button" class="btn btn-sm btn-danger"></button>
@@ -123,8 +132,8 @@
       <div id="equip-list" class="equip-list"></div>
     </section>
 
-    <!-- General & Backup -->
-    <section class="card">
+    <!-- General & Backup (Debug Mode Only) -->
+    <section id="general-backup-section" class="card debug-only">
       <div class="card-head">
         <div>
           <h2 class="card-title">General &amp; Backup</h2>
@@ -174,7 +183,7 @@
 
     <footer class="options-footer">
       <span>© 2026 — Developed by FIKRI</span>
-      <span id="options-footer-ver" class="version-pill">v1.4.0</span>
+      <span id="options-footer-ver" class="version-pill">v1.5.0</span>
     </footer>
   </div>
 

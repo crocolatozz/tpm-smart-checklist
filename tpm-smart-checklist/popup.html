@@ -10,10 +10,13 @@
   <div class="popup-shell">
     <header class="popup-header">
       <div class="brand-row">
-        <span class="brand-mark" data-icon="clipboard-check" data-size="16"></span>
+        <img src="./icons/icon.svg" alt="TPM Smart Checklist" class="brand-logo" width="28" height="28" />
         <div class="brand-text-wrap">
           <h1 class="popup-title">TPM Smart Checklist</h1>
-          <span id="popup-version" class="version-pill">v1.4.0</span>
+          <div class="brand-sub-row">
+            <span id="popup-version" class="version-pill">v1.5.0</span>
+            <span id="popup-debug-badge" class="debug-badge is-hidden"></span>
+          </div>
         </div>
       </div>
 
@@ -42,8 +45,8 @@
         <button type="button" role="tab" class="op-seg-btn" data-operator="op3">Operator 3</button>
       </div>
 
-      <div class="preset-meta-row">
-        <span id="preset-area-label" class="preset-area">LAPANGAN 1 (GROUND)</span>
+      <div class="preset-meta-row debug-only">
+        <span id="preset-operator-label" class="preset-area">Operator 1</span>
         <div class="preset-counts">
           <span id="running-count-chip" class="count-chip is-running">30 Running</span>
           <span id="standby-count-chip" class="count-chip is-standby">0 Standby</span>
@@ -70,15 +73,15 @@
         <input id="include-every-shift" type="checkbox" checked />
         <span>Sertakan task Every Shift</span>
       </label>
-      <label class="checkbox-row" for="auto-show-all-rows">
+      <label class="checkbox-row debug-only" for="auto-show-all-rows">
         <input id="auto-show-all-rows" type="checkbox" checked />
         <span>Auto-tampilkan semua baris (300+)</span>
       </label>
     </div>
 
     <div class="action-grid">
-      <button id="dry-run-btn" type="button" class="btn btn-dry"></button>
-      <button id="clear-dry-run-btn" type="button" class="btn btn-clear" title="Bersihkan sorotan Dry Run"></button>
+      <button id="dry-run-btn" type="button" class="btn btn-dry debug-only"></button>
+      <button id="clear-dry-run-btn" type="button" class="btn btn-clear debug-only" title="Bersihkan sorotan Dry Run"></button>
       <button id="execute-btn" type="button" class="btn btn-primary"></button>
     </div>
 
@@ -89,11 +92,11 @@
       </div>
     </div>
 
-    <section class="summary-box" aria-label="Ringkasan Eksekusi">
+    <section id="summary-box" class="summary-box" aria-label="Ringkasan Eksekusi">
       <div id="summary-status" class="summary-status">
         Siap memindai tabel checklist pada tab aktif.
       </div>
-      <div class="stats-grid">
+      <div class="stats-grid debug-only">
         <div class="stat-item">
           <span class="stat-name">Total Discan</span>
           <span id="stat-scanned" class="stat-val">0</span>

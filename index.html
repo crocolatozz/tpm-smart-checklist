@@ -983,6 +983,10 @@
           </button>
         </div>
 
+        <button id="download-icons-btn" type="button" class="btn btn-sm" title="Render icons/icon.svg menjadi icon16.png, icon48.png, icon128.png">
+          Download PNG Icons (16/48/128px)
+        </button>
+
         <button id="reset-storage-btn" type="button" class="btn btn-danger">
           Reset Mock Storage
         </button>
@@ -1258,6 +1262,7 @@
       const elViewPopup = document.getElementById('view-popup');
       const elViewOptions = document.getElementById('view-options');
       const elResetStorageBtn = document.getElementById('reset-storage-btn');
+      const elDownloadIconsBtn = document.getElementById('download-icons-btn');
       const elBackToPopupBtn = document.getElementById('back-to-popup-btn');
 
       const elPopupFrame = document.getElementById('popup-frame');
@@ -2057,6 +2062,54 @@
         addLog('storage', 'reset', 'Mock storage untuk "' + state.folder + '" dihapus dan pratinjau dimuat ulang.');
         loadExtension(state.folder);
       });
+
+      if (elDownloadIconsBtn) {
+        elDownloadIconsBtn.addEventListener('click', async function () {
+          const svgUrl = './' + state.folder + '/icons/icon.svg?_ts=' + Date.now();
+          try {
+            const res = await fetch(svgUrl, { cache: 'no-store' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const svgText = await res.text();
+            const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+            const blobUrl = URL.createObjectURL(svgBlob);
+
+            const img = await new Promise((resolve, reject) => {
+              const image = new Image();
+              image.onload = () => resolve(image);
+              image.onerror = () => reject(new Error('Gagal merender icons/icon.svg ke Image'));
+              image.src = blobUrl;
+            });
+
+            const sizes = [16, 48, 128];
+            for (const size of sizes) {
+              const canvas = document.createElement('canvas');
+              canvas.width = size;
+              canvas.height = size;
+              const ctx = canvas.getContext('2d');
+              ctx.clearRect(0, 0, size, size);
+              ctx.drawImage(img, 0, 0, size, size);
+
+              const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+              if (pngBlob) {
+                const dlUrl = URL.createObjectURL(pngBlob);
+                const a = document.createElement('a');
+                a.href = dlUrl;
+                a.download = 'icon' + size + '.png';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.setTimeout(() => URL.revokeObjectURL(dlUrl), 1000);
+              }
+              await new Promise((r) => window.setTimeout(r, 180));
+            }
+
+            URL.revokeObjectURL(blobUrl);
+            addLog('tabs', 'icons.export', 'Berhasil mengunduh icon16.png, icon48.png, dan icon128.png dari icons/icon.svg.');
+          } catch (err) {
+            addLog('error', 'icons.export', 'Gagal mengunduh PNG icons: ' + (err && err.message ? err.message : String(err)));
+          }
+        });
+      }
 
       elPopupRetryBtn.addEventListener('click', function () {
         loadExtensionFileIntoIframe(elPopupFrame, elPopupError, elPopupErrorText, state.folder, 'popup.html', 'popup');

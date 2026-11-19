@@ -39,6 +39,7 @@ export function createDefaultSettings() {
   return {
     activeOperator: 'op1',
     theme: 'light',
+    debugMode: false,
     lastFilter: 'all',
     autoDetectShift: true,
     includeEveryShift: true,
@@ -95,6 +96,7 @@ export function normalizeState(raw) {
   return {
     activeOperator: activeOperator,
     theme: src.theme === 'dark' ? 'dark' : 'light',
+    debugMode: typeof src.debugMode === 'boolean' ? src.debugMode : false,
     lastFilter: VALID_FILTERS.has(src.lastFilter) ? src.lastFilter : defaults.lastFilter,
     autoDetectShift: typeof src.autoDetectShift === 'boolean' ? src.autoDetectShift : defaults.autoDetectShift,
     includeEveryShift: typeof src.includeEveryShift === 'boolean' ? src.includeEveryShift : defaults.includeEveryShift,

@@ -2,10 +2,11 @@ import { createSvgIcon, hydrateIcons } from './icons.js';
 import { TPMStorage as Storage } from './storage.js';
 
 const elVersion = document.getElementById('popup-version');
+const elDebugBadge = document.getElementById('popup-debug-badge');
 const elThemeBtn = document.getElementById('theme-toggle-btn');
 const elOptionsBtn = document.getElementById('open-options-btn');
 const elOpBtns = Array.from(document.querySelectorAll('.op-seg-btn[data-operator]'));
-const elAreaLabel = document.getElementById('preset-area-label');
+const elOperatorLabel = document.getElementById('preset-operator-label');
 const elRunningChip = document.getElementById('running-count-chip');
 const elStandbyChip = document.getElementById('standby-count-chip');
 const elScheduleFilter = document.getElementById('schedule-filter');
@@ -18,6 +19,7 @@ const elExecuteBtn = document.getElementById('execute-btn');
 const elProgressWrap = document.getElementById('exec-progress-wrap');
 const elProgressText = document.getElementById('exec-progress-text');
 const elProgressBar = document.getElementById('exec-progress-bar');
+const elSummaryBox = document.getElementById('summary-box');
 const elSummaryStatus = document.getElementById('summary-status');
 
 const elStatScanned = document.getElementById('stat-scanned');
@@ -35,6 +37,7 @@ function renderButtonIcons(theme) {
   hydrateIcons(document);
   elThemeBtn.replaceChildren(createSvgIcon(theme === 'dark' ? 'sun' : 'moon', 15));
   elOptionsBtn.replaceChildren(createSvgIcon('settings', 15));
+  elDebugBadge.replaceChildren(createSvgIcon('bug', 11), document.createTextNode('DEBUG'));
 
   elDryRunBtn.replaceChildren(createSvgIcon('eye', 14), document.createTextNode('Dry Run'));
   elClearDryRunBtn.replaceChildren(createSvgIcon('x', 13), document.createTextNode('Clear'));
@@ -43,7 +46,11 @@ function renderButtonIcons(theme) {
 
 function renderSettings(settings, isInitialBoot) {
   currentSettings = settings;
+  const isDebug = Boolean(settings.debugMode);
+
   Storage.applyTheme(settings.theme);
+  document.body.classList.toggle('is-debug', isDebug);
+  elDebugBadge.classList.toggle('is-hidden', !isDebug);
   renderButtonIcons(settings.theme);
 
   const opId = settings.activeOperator || 'op1';
@@ -56,7 +63,9 @@ function renderSettings(settings, isInitialBoot) {
     btn.setAttribute('aria-selected', String(isSelected));
   }
 
-  elAreaLabel.textContent = preset.area;
+  if (elOperatorLabel) {
+    elOperatorLabel.textContent = preset.label;
+  }
 
   const counts = Storage.countEquipmentStates(activeMap);
   elRunningChip.textContent = counts.running + ' Running';
@@ -64,7 +73,7 @@ function renderSettings(settings, isInitialBoot) {
 
   elAutoDetectShift.checked = Boolean(settings.autoDetectShift);
   elIncludeEveryShift.checked = Boolean(settings.includeEveryShift);
-  elAutoShowAllRows.checked = Boolean(settings.autoShowAllRows);
+  elAutoShowAllRows.checked = isDebug ? Boolean(settings.autoShowAllRows) : true;
 
   if (isInitialBoot) {
     if (settings.autoDetectShift) {
@@ -80,6 +89,7 @@ function renderSettings(settings, isInitialBoot) {
 function setStatus(text, tone) {
   elSummaryStatus.textContent = text;
   elSummaryStatus.classList.remove('is-error', 'is-success', 'is-dry');
+  elSummaryBox.classList.toggle('has-error', tone === 'error');
   if (tone === 'error') elSummaryStatus.classList.add('is-error');
   if (tone === 'success') elSummaryStatus.classList.add('is-success');
   if (tone === 'dry') elSummaryStatus.classList.add('is-dry');
@@ -210,7 +220,7 @@ async function clearPreviewOnActiveTab(options) {
   }
 }
 
-async function triggerRun(isDryRun) {
+async function triggerDryRun() {
   if (isBusy) return;
   setBusy(true);
 
@@ -233,25 +243,17 @@ async function triggerRun(isDryRun) {
     const preset = Storage.OPERATOR_PRESETS[opId] || Storage.OPERATOR_PRESETS.op1;
     const equipmentMap = (settings.operators && settings.operators[opId]) || {};
 
-    setStatus(
-      (isDryRun ? 'Menjalankan Dry Run (' : 'Menjalankan Execute (') + preset.label + ')...',
-      isDryRun ? 'dry' : ''
-    );
-
-    if (!isDryRun) {
-      showProgress(0, 0);
-    } else {
-      hideProgress();
-    }
+    setStatus('Menjalankan Dry Run (' + preset.label + ')...', 'dry');
+    hideProgress();
 
     await injectContentScript(tab.id);
 
     const scheduleFilter = elScheduleFilter.value || 'all';
     const includeEveryShift = Boolean(elIncludeEveryShift.checked);
-    const autoShowAllRows = Boolean(elAutoShowAllRows.checked);
+    const autoShowAllRows = settings.debugMode ? Boolean(elAutoShowAllRows.checked) : true;
 
     const response = await sendTabMessage(tab.id, {
-      action: isDryRun ? 'SCR_DRY_RUN' : 'SCR_EXECUTE',
+      action: 'SCR_DRY_RUN',
       payload: {
         operatorId: opId,
         scheduleFilter: scheduleFilter,
@@ -277,28 +279,17 @@ async function triggerRun(isDryRun) {
 
     const execCount = response.setToExecuted || 0;
     const notExecCount = response.setToNotExecuted || 0;
-    const remainingUnset = response.remainingUnset || 0;
 
-    if (isDryRun) {
-      setStatus(
-        'Dry Run (' + preset.label + '): ' + execCount + ' Executed, ' + notExecCount + ' Not Executed' + expandedNote + '.',
-        'dry'
-      );
-    } else {
-      const jumpNote = remainingUnset > 0
-        ? ' · ' + remainingUnset + ' Unset aktif tersisa (Auto-Jump)'
-        : ' · Semua unit aktif terisi';
-      setStatus(
-        'Execute (' + preset.label + '): ' + execCount + ' Executed, ' + notExecCount + ' Not Executed' + expandedNote + jumpNote + '.',
-        'success'
-      );
-    }
+    setStatus(
+      'Dry Run (' + preset.label + '): ' + execCount + ' Executed, ' + notExecCount + ' Not Executed' + expandedNote + '.',
+      'dry'
+    );
 
     await Storage.appendHistory({
       timestamp: new Date().toISOString(),
       operatorId: opId,
       operatorLabel: preset.label,
-      mode: isDryRun ? 'Dry Run' : 'Execute',
+      mode: 'Dry Run',
       scheduleFilter: scheduleFilter,
       includeEveryShift: includeEveryShift,
       totalScanned: response.totalScanned,
@@ -306,12 +297,91 @@ async function triggerRun(isDryRun) {
       setToNotExecuted: notExecCount,
       alreadySet: response.alreadySet || 0,
       untouchedCount: response.untouchedCount || 0,
-      remainingUnset: remainingUnset
+      remainingUnset: response.remainingUnset || 0
     });
   } catch (err) {
-    setStatus(err && err.message ? err.message : 'Terjadi kesalahan saat eksekusi.', 'error');
+    setStatus(err && err.message ? err.message : 'Terjadi kesalahan saat Dry Run.', 'error');
   } finally {
     hideProgress();
+    setBusy(false);
+  }
+}
+
+async function triggerExecuteWorkflow() {
+  if (isBusy) return;
+  setBusy(true);
+
+  try {
+    const settings = await Storage.getSettings();
+    renderSettings(settings, false);
+
+    const tab = await queryActiveTab();
+    const tabUrl = tab.url || '';
+
+    if (!Storage.matchesUrlPattern(tabUrl, settings.targetUrlPattern)) {
+      setStatus(
+        'Tab aktif bukan halaman web TPM yang sesuai (' + settings.targetUrlPattern + ').',
+        'error'
+      );
+      setBusy(false);
+      return;
+    }
+
+    const opId = settings.activeOperator || 'op1';
+    const preset = Storage.OPERATOR_PRESETS[opId] || Storage.OPERATOR_PRESETS.op1;
+    const equipmentMap = (settings.operators && settings.operators[opId]) || {};
+    const scheduleFilter = elScheduleFilter.value || 'all';
+    const selectedOpt = elScheduleFilter.options[elScheduleFilter.selectedIndex];
+    const scheduleLabel = selectedOpt ? selectedOpt.textContent.trim() : scheduleFilter;
+    const includeEveryShift = Boolean(elIncludeEveryShift.checked);
+    // Keep auto-expand 300+ rows enabled automatically in Daily Operational Mode (Debug Mode OFF)
+    const autoShowAllRows = settings.debugMode ? Boolean(elAutoShowAllRows.checked) : true;
+
+    await injectContentScript(tab.id);
+
+    chrome.tabs.sendMessage(
+      tab.id,
+      {
+        action: 'SCR_START_WORKFLOW',
+        payload: {
+          operatorId: opId,
+          operatorLabel: preset.label,
+          scheduleFilter: scheduleFilter,
+          scheduleLabel: scheduleLabel,
+          includeEveryShift: includeEveryShift,
+          autoShowAllRows: autoShowAllRows,
+          equipmentMap: equipmentMap,
+          skipRunningKeywords: settings.skipRunningKeywords,
+          skipStandbyKeywords: settings.skipStandbyKeywords,
+          clickDelayMs: settings.clickDelayMs,
+          theme: settings.theme,
+          debugMode: Boolean(settings.debugMode)
+        }
+      },
+      function (response) {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          setStatus(chrome.runtime.lastError.message, 'error');
+          setBusy(false);
+          return;
+        }
+        if (!response || !response.ok) {
+          setStatus((response && response.error) || 'Gagal membuka modal checklist pada tab aktif.', 'error');
+          setBusy(false);
+          return;
+        }
+
+        // Safely close extension popup ONLY inside chrome.tabs.sendMessage success callback
+        if (window.top === window.self) {
+          window.close();
+          return;
+        }
+
+        setStatus('Modal konfirmasi dibuka pada halaman web TPM.', 'success');
+        setBusy(false);
+      }
+    );
+  } catch (err) {
+    setStatus(err && err.message ? err.message : 'Gagal terhubung ke halaman web TPM.', 'error');
     setBusy(false);
   }
 }
@@ -326,11 +396,23 @@ async function init() {
 
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener(function (message) {
-      if (!message || message.action !== 'SCR_EXECUTE_PROGRESS' || !message.payload) {
-        return;
+      if (!message || typeof message !== 'object') return;
+      if (message.action === 'SCR_EXECUTE_PROGRESS' && message.payload && currentSettings.debugMode) {
+        showProgress(message.payload.current, message.payload.total);
       }
-      if (!isBusy) return;
-      showProgress(message.payload.current, message.payload.total);
+      if (message.action === 'SCR_WORKFLOW_COMPLETE' && message.payload) {
+        if (currentSettings.debugMode) {
+          hideProgress();
+          updateSummaryNumbers(message.payload);
+          setStatus(
+            'Selesai (' + message.payload.operatorLabel + '): ' +
+            (message.payload.setToExecuted || 0) + ' Executed, ' +
+            (message.payload.setToNotExecuted || 0) + ' Not Executed.',
+            'success'
+          );
+        }
+        Storage.appendHistory(message.payload);
+      }
     });
   }
 
@@ -404,7 +486,7 @@ async function init() {
   });
 
   elDryRunBtn.addEventListener('click', function () {
-    triggerRun(true);
+    triggerDryRun();
   });
 
   elClearDryRunBtn.addEventListener('click', function () {
@@ -413,7 +495,7 @@ async function init() {
   });
 
   elExecuteBtn.addEventListener('click', function () {
-    triggerRun(false);
+    triggerExecuteWorkflow();
   });
 }
 

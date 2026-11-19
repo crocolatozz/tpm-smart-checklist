@@ -3,6 +3,8 @@ import { TPMStorage as Storage } from './storage.js';
 import { EQUIPMENT_DB } from './equipment-db.js';
 
 const elVersion = document.getElementById('options-version');
+const elDebugBadge = document.getElementById('options-debug-badge');
+const elDebugToggle = document.getElementById('debug-mode-toggle');
 const elFooterVer = document.getElementById('options-footer-ver');
 const elSaveToast = document.getElementById('save-toast');
 const elThemeBtn = document.getElementById('options-theme-btn');
@@ -16,7 +18,6 @@ const elOpTabs = Array.from(document.querySelectorAll('.op-tab-btn[data-op-tab]'
 const elOp1Total = document.getElementById('op1-total');
 const elOp2Total = document.getElementById('op2-total');
 const elOp3Total = document.getElementById('op3-total');
-const elOpAreaBadge = document.getElementById('op-area-badge');
 
 const elSearchInput = document.getElementById('equip-search-input');
 const elScrapeBtn = document.getElementById('scrape-tab-btn');
@@ -75,6 +76,7 @@ function renderThemeButton(theme) {
 
 function renderStaticIcons() {
   hydrateIcons(document);
+  elDebugBadge.replaceChildren(createSvgIcon('bug', 11), document.createTextNode('DEBUG'));
   elScrapeBtn.replaceChildren(createSvgIcon('scan', 14), document.createTextNode('Ambil Tag dari Tab Aktif'));
   elBulkPasteBtn.replaceChildren(createSvgIcon('plus', 14), document.createTextNode('+ Bulk Paste Tag'));
   elResetDefaultBtn.replaceChildren(createSvgIcon('rotate-ccw', 14), document.createTextNode('Reset Default Operator Ini'));
@@ -212,9 +214,6 @@ function renderOperatorTabs() {
     btn.classList.toggle('is-active', isSelected);
     btn.setAttribute('aria-selected', String(isSelected));
   }
-
-  const preset = EQUIPMENT_DB[selectedOpId] || EQUIPMENT_DB.op1;
-  elOpAreaBadge.textContent = preset.area;
 }
 
 function renderEquipmentList() {
@@ -368,7 +367,12 @@ function renderHistory() {
 
 function renderAll(settings) {
   currentSettings = settings;
+  const isDebug = Boolean(settings.debugMode);
+
   Storage.applyTheme(settings.theme);
+  document.body.classList.toggle('is-debug', isDebug);
+  elDebugToggle.checked = isDebug;
+  elDebugBadge.classList.toggle('is-hidden', !isDebug);
   renderThemeButton(settings.theme);
 
   if (document.activeElement !== elSkipRunning) {
@@ -441,7 +445,7 @@ function scrapeActiveTabTags() {
 function openBulkModal() {
   const preset = EQUIPMENT_DB[selectedOpId] || EQUIPMENT_DB.op1;
   elBulkModalDesc.textContent =
-    'Tempel daftar tag (satu tag per baris) untuk ditambahkan ke ' + preset.label + ' (' + preset.area + ').';
+    'Tempel daftar tag (satu tag per baris) untuk ditambahkan ke ' + preset.label + '.';
   elBulkTextarea.value = '';
   elBulkModal.classList.remove('is-hidden');
   elBulkTextarea.focus();
@@ -496,6 +500,13 @@ async function init() {
       renderEquipmentList();
     });
   }
+
+  elDebugToggle.addEventListener('change', async function () {
+    const nextDebug = Boolean(elDebugToggle.checked);
+    const updated = await Storage.saveSettings({ debugMode: nextDebug });
+    renderAll(updated);
+    showSavedToast(nextDebug ? 'Debug Mode ON' : 'Debug Mode OFF');
+  });
 
   elThemeBtn.addEventListener('click', async function () {
     const nextTheme = currentSettings.theme === 'dark' ? 'light' : 'dark';
