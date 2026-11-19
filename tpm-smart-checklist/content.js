@@ -241,12 +241,14 @@
   function countConfiguredUnits(equipmentMap) {
     let running = 0;
     let standby = 0;
+    let ignore = 0;
     const map = equipmentMap && typeof equipmentMap === 'object' ? equipmentMap : {};
     for (const val of Object.values(map)) {
       if (val === 'RUNNING') running++;
       else if (val === 'STANDBY') standby++;
+      else if (val === 'IGNORE') ignore++;
     }
-    return { running: running, standby: standby };
+    return { running: running, standby: standby, ignore: ignore };
   }
 
   function scoreLengthOption(opt) {
@@ -617,6 +619,7 @@
       let setToNotExecuted = 0;
       let alreadySet = 0;
       let untouchedCount = 0;
+      let ignoredRowCount = 0;
       let firstMatchedRow = null;
 
       for (const row of rows) {
@@ -631,6 +634,11 @@
         }
 
         const equipState = tag ? equipmentMap[tag] : null;
+        if (equipState === 'IGNORE') {
+          ignoredRowCount++;
+          untouchedCount++;
+          continue;
+        }
         if (equipState !== 'RUNNING' && equipState !== 'STANDBY') {
           untouchedCount++;
           continue;
@@ -755,6 +763,7 @@
         setToNotExecuted: setToNotExecuted,
         alreadySet: alreadySet,
         untouchedCount: untouchedCount,
+        ignoredRowCount: ignoredRowCount,
         remainingUnset: remainingUnset,
         firstRemainingUnsetRow: firstRemainingUnsetRow
       };
@@ -776,81 +785,26 @@
     svg.setAttribute('aria-hidden', 'true');
 
     if (name === 'smart-logo') {
-      const rays = [
-        [256, 14, 256, 72],
-        [85, 85, 126, 126],
-        [427, 85, 386, 126],
-        [14, 256, 72, 256],
-        [440, 256, 498, 256],
-        [85, 427, 126, 386],
-        [427, 427, 386, 386]
-      ];
-      const g = document.createElementNS(SVG_NS, 'g');
-      g.setAttribute('stroke', '#10B981');
-      g.setAttribute('stroke-width', '24');
-      g.setAttribute('stroke-linecap', 'round');
-      for (const [x1, y1, x2, y2] of rays) {
-        const line = document.createElementNS(SVG_NS, 'line');
-        line.setAttribute('x1', String(x1));
-        line.setAttribute('y1', String(y1));
-        line.setAttribute('x2', String(x2));
-        line.setAttribute('y2', String(y2));
-        g.appendChild(line);
-      }
-      svg.appendChild(g);
+      const sparkleSmall = document.createElementNS(SVG_NS, 'path');
+      sparkleSmall.setAttribute('d', 'M275 55C277.5 85 289 96.5 329 109C289 121.5 277.5 133 275 163C272.5 133 261 121.5 221 109C261 96.5 272.5 85 275 55Z');
+      sparkleSmall.setAttribute('fill', '#FBBF24');
+      sparkleSmall.setAttribute('stroke', '#FBBF24');
+      sparkleSmall.setAttribute('stroke-width', '6');
+      sparkleSmall.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(sparkleSmall);
 
-      const baseRect = document.createElementNS(SVG_NS, 'rect');
-      baseRect.setAttribute('x', '204');
-      baseRect.setAttribute('y', '422');
-      baseRect.setAttribute('width', '104');
-      baseRect.setAttribute('height', '44');
-      baseRect.setAttribute('rx', '12');
-      baseRect.setAttribute('fill', '#D1FAE5');
-      svg.appendChild(baseRect);
+      const sparkleLarge = document.createElementNS(SVG_NS, 'path');
+      sparkleLarge.setAttribute('d', 'M172 87C175 123 189 137 237 152.5C189 168 175 182 172 218C169 182 155 168 107 152.5C155 137 169 123 172 87Z');
+      sparkleLarge.setAttribute('fill', '#FBBF24');
+      sparkleLarge.setAttribute('stroke', '#FBBF24');
+      sparkleLarge.setAttribute('stroke-width', '7');
+      sparkleLarge.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(sparkleLarge);
 
-      const cap = document.createElementNS(SVG_NS, 'path');
-      cap.setAttribute('d', 'M222 468C228 486 241 498 256 498C271 498 284 486 290 468');
-      cap.setAttribute('fill', '#D1FAE5');
-      cap.setAttribute('stroke', '#10B981');
-      cap.setAttribute('stroke-width', '24');
-      cap.setAttribute('stroke-linecap', 'round');
-      cap.setAttribute('stroke-linejoin', 'round');
-      svg.appendChild(cap);
-
-      const bulb = document.createElementNS(SVG_NS, 'path');
-      bulb.setAttribute('d', 'M256 112C176.5 112 112 176.5 112 256C112 311.2 143.1 359.2 188.8 383.3C198.2 388.3 204 398.1 204 408.7V452C204 460.8 211.2 468 220 468H292C300.8 468 308 460.8 308 452V408.7C308 398.1 313.8 388.3 323.2 383.3C368.9 359.2 400 311.2 400 256C400 176.5 335.5 112 256 112Z');
-      bulb.setAttribute('stroke', '#10B981');
-      bulb.setAttribute('stroke-width', '24');
-      bulb.setAttribute('stroke-linecap', 'round');
-      bulb.setAttribute('stroke-linejoin', 'round');
-      svg.appendChild(bulb);
-
-      const neck = document.createElementNS(SVG_NS, 'line');
-      neck.setAttribute('x1', '204');
-      neck.setAttribute('y1', '422');
-      neck.setAttribute('x2', '308');
-      neck.setAttribute('y2', '422');
-      neck.setAttribute('stroke', '#10B981');
-      neck.setAttribute('stroke-width', '24');
-      neck.setAttribute('stroke-linecap', 'round');
-      svg.appendChild(neck);
-
-      const innerCircle = document.createElementNS(SVG_NS, 'circle');
-      innerCircle.setAttribute('cx', '256');
-      innerCircle.setAttribute('cy', '255');
-      innerCircle.setAttribute('r', '68');
-      innerCircle.setAttribute('fill', '#D1FAE5');
-      innerCircle.setAttribute('stroke', '#10B981');
-      innerCircle.setAttribute('stroke-width', '24');
-      svg.appendChild(innerCircle);
-
-      const check = document.createElementNS(SVG_NS, 'path');
-      check.setAttribute('d', 'M230 255L248 273L283 238');
-      check.setAttribute('stroke', '#10B981');
-      check.setAttribute('stroke-width', '24');
-      check.setAttribute('stroke-linecap', 'round');
-      check.setAttribute('stroke-linejoin', 'round');
-      svg.appendChild(check);
+      const checkMark = document.createElementNS(SVG_NS, 'path');
+      checkMark.setAttribute('d', 'M84 236C92 228 105 228 113 236L198 321L399 120C407 112 420 112 428 120L472 164C480 172 480 185 472 193L216 449C206 459 190 459 180 449L40 309C32 301 32 288 40 280L84 236Z');
+      checkMark.setAttribute('fill', '#10B981');
+      svg.appendChild(checkMark);
       return svg;
     }
 
@@ -1048,7 +1002,7 @@
 
       .tpm-unit-chips {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(3, 1fr);
         gap: 8px;
       }
 
@@ -1056,11 +1010,11 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 9px 12px;
+        padding: 8px 10px;
         border-radius: 9px;
         border: 1px solid var(--border-color);
         background: var(--bg-subtle);
-        font-size: 12.5px;
+        font-size: 12px;
         font-weight: 600;
       }
 
@@ -1070,6 +1024,10 @@
 
       .tpm-unit-chip.is-standby .tpm-chip-num {
         color: var(--amber);
+      }
+
+      .tpm-unit-chip.is-ignore .tpm-chip-num {
+        color: var(--text-secondary);
       }
 
       .tpm-chip-num {
@@ -1361,6 +1319,7 @@
 
       const unitCounts = countConfiguredUnits(payload.equipmentMap);
       const remainingCount = Number(result.remainingUnset) || 0;
+      const ignoredRows = Number(result.ignoredRowCount) || 0;
       const firstUnsetRow = result.firstRemainingUnsetRow || null;
 
       const header = document.createElement('div');
@@ -1403,8 +1362,19 @@
       standbyChip.appendChild(stbyLbl);
       standbyChip.appendChild(stbyVal);
 
+      const ignoreChip = document.createElement('div');
+      ignoreChip.className = 'tpm-unit-chip is-ignore';
+      const ignLbl = document.createElement('span');
+      ignLbl.textContent = 'Unit Ignore';
+      const ignVal = document.createElement('span');
+      ignVal.className = 'tpm-chip-num';
+      ignVal.textContent = String(unitCounts.ignore);
+      ignoreChip.appendChild(ignLbl);
+      ignoreChip.appendChild(ignVal);
+
       unitChips.appendChild(runningChip);
       unitChips.appendChild(standbyChip);
+      unitChips.appendChild(ignoreChip);
 
       const banner = document.createElement('div');
       banner.className = 'tpm-banner';
@@ -1416,12 +1386,16 @@
 
       const remainNote = document.createElement('p');
       remainNote.className = 'tpm-remain-note';
+      const ignoreSuffix = ignoredRows > 0
+        ? ' ' + ignoredRows + ' baris berstatus IGNORE dilewati.'
+        : '';
 
       const actions = document.createElement('div');
       actions.className = 'tpm-actions';
 
       if (remainingCount === 0) {
-        remainNote.textContent = 'Seluruh task unit aktif (Running / Standby) pada tampilan saat ini sudah terisi.';
+        remainNote.textContent =
+          'Seluruh task unit aktif (Running / Standby) pada tampilan saat ini sudah terisi.' + ignoreSuffix;
         const doneBtn = document.createElement('button');
         doneBtn.type = 'button';
         doneBtn.className = 'tpm-btn tpm-btn-primary';
@@ -1436,7 +1410,7 @@
         modal.appendChild(actions);
       } else {
         remainNote.textContent =
-          'Masih terdapat ' + remainingCount + ' baris unit aktif (Running / Standby) yang berstatus Unset.';
+          'Masih terdapat ' + remainingCount + ' baris unit aktif (Running / Standby) yang berstatus Unset.' + ignoreSuffix;
 
         const closeBtn = document.createElement('button');
         closeBtn.type = 'button';
@@ -1554,6 +1528,7 @@
           setToNotExecuted: result.setToNotExecuted,
           alreadySet: result.alreadySet,
           untouchedCount: result.untouchedCount,
+          ignoredRowCount: result.ignoredRowCount,
           remainingUnset: result.remainingUnset
         }
       });
@@ -1582,11 +1557,16 @@
       const grid = document.createElement('div');
       grid.className = 'tpm-info-grid';
 
+      const unitCounts = countConfiguredUnits(payload.equipmentMap);
       const rowsData = [
         { k: 'Halaman Operator', v: resolvedOperatorLabel + resolvedAreaSuffix },
         { k: 'Tanggal Aktif', v: resolvedDate },
         { k: 'Jadwal / Shift', v: payload.scheduleLabel || payload.scheduleFilter || 'Semua Jadwal' },
-        { k: 'Task Every Shift', v: payload.includeEveryShift ? 'Disertakan' : 'Tidak disertakan' }
+        { k: 'Task Every Shift', v: payload.includeEveryShift ? 'Disertakan' : 'Tidak disertakan' },
+        {
+          k: 'Status Unit',
+          v: unitCounts.running + ' Running · ' + unitCounts.standby + ' Standby · ' + unitCounts.ignore + ' Ignore (Dilewati)'
+        }
       ];
 
       for (const item of rowsData) {

@@ -2,7 +2,7 @@ import { createSvgIcon, hydrateIcons } from './icons.js';
 import { TPMStorage as Storage } from './storage.js';
 
 const elVersion = document.getElementById('popup-version');
-const elDebugBadge = document.getElementById('popup-debug-badge');
+const elDevBadge = document.getElementById('popup-dev-badge');
 const elThemeBtn = document.getElementById('theme-toggle-btn');
 const elOptionsBtn = document.getElementById('open-options-btn');
 
@@ -51,7 +51,7 @@ function renderButtonIcons(theme) {
   hydrateIcons(document);
   elThemeBtn.replaceChildren(createSvgIcon(theme === 'dark' ? 'sun' : 'moon', 15));
   elOptionsBtn.replaceChildren(createSvgIcon('settings', 15));
-  elDebugBadge.replaceChildren(createSvgIcon('bug', 11), document.createTextNode('DEBUG'));
+  elDevBadge.replaceChildren(createSvgIcon('bug', 11), document.createTextNode('DEV'));
 
   elDryRunBtn.replaceChildren(createSvgIcon('eye', 14), document.createTextNode('Dry Run'));
   elClearDryRunBtn.replaceChildren(createSvgIcon('x', 13), document.createTextNode('Clear'));
@@ -59,8 +59,8 @@ function renderButtonIcons(theme) {
 }
 
 function updateExecuteAvailability() {
-  const isDebug = Boolean(currentSettings.debugMode);
-  const blockedByGuard = !isDebug && !pageContext.isValidPage;
+  const isDev = Boolean(currentSettings.devMode);
+  const blockedByGuard = !isDev && !pageContext.isValidPage;
 
   elExecuteBtn.disabled = isBusy || blockedByGuard;
   elGuardHint.classList.toggle('is-hidden', !blockedByGuard);
@@ -98,11 +98,11 @@ function renderPageContext() {
 
 function renderSettings(settings, isInitialBoot) {
   currentSettings = settings;
-  const isDebug = Boolean(settings.debugMode);
+  const isDev = Boolean(settings.devMode);
 
   Storage.applyTheme(settings.theme);
-  document.body.classList.toggle('is-debug', isDebug);
-  elDebugBadge.classList.toggle('is-hidden', !isDebug);
+  document.body.classList.toggle('is-dev', isDev);
+  elDevBadge.classList.toggle('is-hidden', !isDev);
   renderButtonIcons(settings.theme);
 
   const opId = settings.activeOperator || 'op1';
@@ -125,7 +125,7 @@ function renderSettings(settings, isInitialBoot) {
 
   elAutoDetectShift.checked = Boolean(settings.autoDetectShift);
   elIncludeEveryShift.checked = Boolean(settings.includeEveryShift);
-  elAutoShowAllRows.checked = isDebug ? Boolean(settings.autoShowAllRows) : true;
+  elAutoShowAllRows.checked = isDev ? Boolean(settings.autoShowAllRows) : true;
 
   if (isInitialBoot) {
     if (settings.autoDetectShift) {
@@ -245,6 +245,29 @@ function sendTabMessage(tabId, message) {
   });
 }
 
+async function silentAutoPullOnPopupOpen(settings) {
+  if (!settings || !settings.autoPullOnOpen) return;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(function () {
+    controller.abort();
+  }, 2500);
+
+  try {
+    const res = await Storage.pullFromFirestore({
+      projectId: settings.firestoreProjectId,
+      signal: controller.signal,
+      silent: true
+    });
+    if (res && res.settings) {
+      renderSettings(res.settings, false);
+    }
+  } catch (err) {
+    // Silent fallback to local chrome.storage.local cache without blocking UI
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function detectAndSyncPageContext() {
   try {
     const tab = await queryActiveTab();
@@ -341,7 +364,7 @@ async function triggerDryRun() {
 
     const scheduleFilter = elScheduleFilter.value || 'all';
     const includeEveryShift = Boolean(elIncludeEveryShift.checked);
-    const autoShowAllRows = settings.debugMode ? Boolean(elAutoShowAllRows.checked) : true;
+    const autoShowAllRows = settings.devMode ? Boolean(elAutoShowAllRows.checked) : true;
 
     const response = await sendTabMessage(tab.id, {
       action: 'SCR_DRY_RUN',
@@ -400,7 +423,7 @@ async function triggerDryRun() {
 
 async function triggerExecuteWorkflow() {
   if (isBusy) return;
-  if (!currentSettings.debugMode && !pageContext.isValidPage) {
+  if (!currentSettings.devMode && !pageContext.isValidPage) {
     updateExecuteAvailability();
     return;
   }
@@ -423,7 +446,7 @@ async function triggerExecuteWorkflow() {
       return;
     }
 
-    const opId = !settings.debugMode && pageContext.operatorKey
+    const opId = !settings.devMode && pageContext.operatorKey
       ? pageContext.operatorKey
       : (settings.activeOperator || 'op1');
     const preset = Storage.OPERATOR_PRESETS[opId] || Storage.OPERATOR_PRESETS.op1;
@@ -432,7 +455,7 @@ async function triggerExecuteWorkflow() {
     const selectedOpt = elScheduleFilter.options[elScheduleFilter.selectedIndex];
     const scheduleLabel = selectedOpt ? selectedOpt.textContent.trim() : scheduleFilter;
     const includeEveryShift = Boolean(elIncludeEveryShift.checked);
-    const autoShowAllRows = settings.debugMode ? Boolean(elAutoShowAllRows.checked) : true;
+    const autoShowAllRows = settings.devMode ? Boolean(elAutoShowAllRows.checked) : true;
 
     await injectContentScript(tab.id);
 
@@ -453,7 +476,7 @@ async function triggerExecuteWorkflow() {
           skipStandbyKeywords: settings.skipStandbyKeywords,
           clickDelayMs: settings.clickDelayMs,
           theme: settings.theme,
-          debugMode: Boolean(settings.debugMode)
+          devMode: Boolean(settings.devMode)
         }
       },
       function (response) {
@@ -494,11 +517,11 @@ async function init() {
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener(function (message) {
       if (!message || typeof message !== 'object') return;
-      if (message.action === 'SCR_EXECUTE_PROGRESS' && message.payload && currentSettings.debugMode) {
+      if (message.action === 'SCR_EXECUTE_PROGRESS' && message.payload && currentSettings.devMode) {
         showProgress(message.payload.current, message.payload.total);
       }
       if (message.action === 'SCR_WORKFLOW_COMPLETE' && message.payload) {
-        if (currentSettings.debugMode) {
+        if (currentSettings.devMode) {
           hideProgress();
           updateSummaryNumbers(message.payload);
           setStatus(
@@ -516,7 +539,10 @@ async function init() {
   const initial = await Storage.getSettings();
   renderSettings(initial, true);
 
-  await detectAndSyncPageContext();
+  await Promise.all([
+    detectAndSyncPageContext(),
+    silentAutoPullOnPopupOpen(initial)
+  ]);
 
   Storage.onChanged(function (updated) {
     renderSettings(updated, false);

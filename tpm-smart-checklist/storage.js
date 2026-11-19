@@ -3,6 +3,8 @@ import { EQUIPMENT_DB, TASK_KEYWORD_TEMPLATES } from './equipment-db.js';
 const LOCAL_STORAGE_KEY = 'tpm_smart_checklist_v1_state';
 const STORAGE_KEY = 'tpmConfig';
 
+export const DEFAULT_FIRESTORE_PROJECT_ID = 'urea1b-running-status';
+export const RUNNING_STATUS_CHECKER_URL = 'https://crocolatozz.github.io/running-status-checker/';
 export const OPERATOR_PRESETS = EQUIPMENT_DB;
 export const KEYWORD_TEMPLATES = TASK_KEYWORD_TEMPLATES;
 export const VALID_OPERATOR_IDS = ['op1', 'op2', 'op3'];
@@ -60,25 +62,11 @@ function buildAllDefaultOperators() {
   };
 }
 
-export function buildEquipmentPairsPayload() {
-  const pairs = { op1: {}, op2: {}, op3: {} };
-  for (const opId of VALID_OPERATOR_IDS) {
-    const preset = EQUIPMENT_DB[opId];
-    if (!preset || !Array.isArray(preset.equipments)) continue;
-    for (const item of preset.equipments) {
-      if (item.pair) {
-        pairs[opId][item.tag] = item.pair;
-      }
-    }
-  }
-  return pairs;
-}
-
 export function createDefaultSettings() {
   return {
     activeOperator: 'op1',
     theme: 'light',
-    debugMode: false,
+    devMode: false,
     lastFilter: 'all',
     autoDetectShift: true,
     includeEveryShift: true,
@@ -87,12 +75,11 @@ export function createDefaultSettings() {
     skipStandbyKeywords: ['Kelainan suara'],
     targetUrlPattern: '*',
     clickDelayMs: 150,
-    dbWebAppUrl: '',
-    dbSecretToken: '',
-    dbAutoPull: false,
-    dbLastSyncAt: '',
-    dbSyncStatus: 'offline',
-    dbSyncMessage: '',
+    firestoreProjectId: DEFAULT_FIRESTORE_PROJECT_ID,
+    autoPullOnOpen: true,
+    lastSyncAt: '',
+    syncStatus: 'offline',
+    syncMessage: '',
     operators: buildAllDefaultOperators(),
     executionHistory: []
   };
@@ -138,10 +125,39 @@ export function normalizeState(raw) {
   const delayNum = Number(src.clickDelayMs);
   const historyArr = Array.isArray(src.executionHistory) ? src.executionHistory.slice(0, 20) : [];
 
+  const resolvedDevMode =
+    typeof src.devMode === 'boolean'
+      ? src.devMode
+      : typeof src.debugMode === 'boolean'
+        ? src.debugMode
+        : false;
+
+  const resolvedProjectId =
+    typeof src.firestoreProjectId === 'string' && src.firestoreProjectId.trim()
+      ? src.firestoreProjectId.trim()
+      : defaults.firestoreProjectId;
+
+  const resolvedAutoPull =
+    typeof src.autoPullOnOpen === 'boolean'
+      ? src.autoPullOnOpen
+      : typeof src.dbAutoPull === 'boolean'
+        ? src.dbAutoPull
+        : defaults.autoPullOnOpen;
+
+  const resolvedLastSyncAt =
+    typeof src.lastSyncAt === 'string'
+      ? src.lastSyncAt.trim()
+      : typeof src.dbLastSyncAt === 'string'
+        ? src.dbLastSyncAt.trim()
+        : '';
+
+  const rawSyncStatus = src.syncStatus || src.dbSyncStatus;
+  const resolvedSyncStatus = VALID_SYNC_STATUSES.has(rawSyncStatus) ? rawSyncStatus : 'offline';
+
   return {
     activeOperator: activeOperator,
     theme: src.theme === 'dark' ? 'dark' : 'light',
-    debugMode: typeof src.debugMode === 'boolean' ? src.debugMode : false,
+    devMode: resolvedDevMode,
     lastFilter: VALID_FILTERS.has(src.lastFilter) ? src.lastFilter : defaults.lastFilter,
     autoDetectShift: typeof src.autoDetectShift === 'boolean' ? src.autoDetectShift : defaults.autoDetectShift,
     includeEveryShift: typeof src.includeEveryShift === 'boolean' ? src.includeEveryShift : defaults.includeEveryShift,
@@ -154,12 +170,11 @@ export function normalizeState(raw) {
     clickDelayMs: Number.isFinite(delayNum) && delayNum >= 0
       ? Math.min(5000, Math.round(delayNum))
       : defaults.clickDelayMs,
-    dbWebAppUrl: typeof src.dbWebAppUrl === 'string' ? src.dbWebAppUrl.trim() : '',
-    dbSecretToken: typeof src.dbSecretToken === 'string' ? src.dbSecretToken.trim() : '',
-    dbAutoPull: typeof src.dbAutoPull === 'boolean' ? src.dbAutoPull : false,
-    dbLastSyncAt: typeof src.dbLastSyncAt === 'string' ? src.dbLastSyncAt.trim() : '',
-    dbSyncStatus: VALID_SYNC_STATUSES.has(src.dbSyncStatus) ? src.dbSyncStatus : 'offline',
-    dbSyncMessage: typeof src.dbSyncMessage === 'string' ? src.dbSyncMessage.trim() : '',
+    firestoreProjectId: resolvedProjectId,
+    autoPullOnOpen: resolvedAutoPull,
+    lastSyncAt: resolvedLastSyncAt,
+    syncStatus: resolvedSyncStatus,
+    syncMessage: typeof src.syncMessage === 'string' ? src.syncMessage.trim() : '',
     operators: operators,
     executionHistory: historyArr
   };
@@ -271,151 +286,276 @@ export async function clearHistory() {
   return saveSettings({ executionHistory: [] });
 }
 
-function validateDbConfig(url, token) {
-  const cleanUrl = String(url || '').trim();
-  const cleanToken = String(token || '').trim();
-  if (!cleanUrl) {
-    throw new Error('URL Web App Apps Script belum diisi.');
+function validateProjectId(rawProjectId) {
+  const clean = String(rawProjectId || '').trim();
+  if (!clean) {
+    throw new Error('Firestore Project ID belum diisi.');
   }
-  if (!/^https:\/\/script\.google(usercontent)?\.com\//i.test(cleanUrl)) {
-    throw new Error('URL harus mengarah ke endpoint https://script.google.com/macros/s/.../exec');
+  if (!/^[a-zA-Z0-9_-]+$/.test(clean)) {
+    throw new Error('Format Firestore Project ID tidak valid.');
   }
-  if (!cleanToken) {
-    throw new Error('Secret Token database belum diisi.');
-  }
-  return { url: cleanUrl, token: cleanToken };
+  return clean;
 }
 
-export async function pullFromCentralDb(overrideConfig) {
-  const current = await getSettings();
-  const cfg = validateDbConfig(
-    overrideConfig && overrideConfig.dbWebAppUrl !== undefined ? overrideConfig.dbWebAppUrl : current.dbWebAppUrl,
-    overrideConfig && overrideConfig.dbSecretToken !== undefined ? overrideConfig.dbSecretToken : current.dbSecretToken
-  );
+function extractFirestoreStringArray(field) {
+  const rawValues = field && field.arrayValue && Array.isArray(field.arrayValue.values)
+    ? field.arrayValue.values
+    : [];
+  return rawValues
+    .map((v) => (v && typeof v.stringValue === 'string' ? v.stringValue.trim() : ''))
+    .filter(Boolean);
+}
 
-  const sep = cfg.url.includes('?') ? '&' : '?';
-  const reqUrl = cfg.url + sep + 'action=pull&token=' + encodeURIComponent(cfg.token);
+async function fetchAllEquipmentDocs(projectId, signal) {
+  const docs = [];
+  let pageToken = '';
+  const baseUrl =
+    'https://firestore.googleapis.com/v1/projects/' +
+    encodeURIComponent(projectId) +
+    '/databases/(default)/documents/equipments?pageSize=200';
 
-  let response;
-  try {
-    response = await fetch(reqUrl, {
+  do {
+    const url = pageToken ? baseUrl + '&pageToken=' + encodeURIComponent(pageToken) : baseUrl;
+    const res = await fetch(url, {
       method: 'GET',
-      cache: 'no-store'
+      cache: 'no-store',
+      signal: signal
     });
-  } catch (err) {
-    await saveSettings({
-      dbSyncStatus: 'error',
-      dbSyncMessage: 'Gagal terhubung ke server (offline).'
-    });
-    throw new Error('Tidak dapat terhubung ke server Google Sheets (mode offline tetap aktif).');
-  }
+    if (!res.ok) {
+      throw new Error('Firestore equipments HTTP ' + res.status);
+    }
+    const json = await res.json();
+    if (Array.isArray(json && json.documents)) {
+      docs.push(...json.documents);
+    }
+    pageToken = (json && json.nextPageToken) || '';
+  } while (pageToken);
 
-  if (!response.ok) {
-    await saveSettings({
-      dbSyncStatus: 'error',
-      dbSyncMessage: 'HTTP ' + response.status
-    });
-    throw new Error('Server mengembalikan HTTP ' + response.status);
-  }
-
-  const json = await response.json();
-  if (!json || json.status !== 'ok') {
-    const errMsg = (json && json.message) || 'Respons server tidak valid.';
-    await saveSettings({
-      dbSyncStatus: 'error',
-      dbSyncMessage: errMsg
-    });
-    throw new Error(errMsg);
-  }
-
-  const remoteData = (json && json.data) || {};
-  const remoteOps = remoteData.operators && typeof remoteData.operators === 'object' ? remoteData.operators : {};
-  const mergedOps = {
-    op1: remoteOps.op1 && Object.keys(remoteOps.op1).length > 0 ? remoteOps.op1 : current.operators.op1,
-    op2: remoteOps.op2 && Object.keys(remoteOps.op2).length > 0 ? remoteOps.op2 : current.operators.op2,
-    op3: remoteOps.op3 && Object.keys(remoteOps.op3).length > 0 ? remoteOps.op3 : current.operators.op3
-  };
-
-  const nextSettings = await saveSettings({
-    dbWebAppUrl: cfg.url,
-    dbSecretToken: cfg.token,
-    operators: mergedOps,
-    skipRunningKeywords: Array.isArray(remoteData.skipRunningKeywords)
-      ? remoteData.skipRunningKeywords
-      : current.skipRunningKeywords,
-    skipStandbyKeywords: Array.isArray(remoteData.skipStandbyKeywords)
-      ? remoteData.skipStandbyKeywords
-      : current.skipStandbyKeywords,
-    dbLastSyncAt: json.updatedAt || new Date().toISOString(),
-    dbSyncStatus: 'synced',
-    dbSyncMessage: 'Pull berhasil'
-  });
-
-  return nextSettings;
+  return docs;
 }
 
-export async function pushToCentralDb(overrideConfig) {
+async function fetchTpmConfigDoc(projectId, signal) {
+  const url =
+    'https://firestore.googleapis.com/v1/projects/' +
+    encodeURIComponent(projectId) +
+    '/databases/(default)/documents/config/tpm_settings';
+
+  const res = await fetch(url, {
+    method: 'GET',
+    cache: 'no-store',
+    signal: signal
+  });
+
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error('Firestore config HTTP ' + res.status);
+  }
+  return res.json();
+}
+
+export async function pullFromFirestore(options) {
+  const opts = options || {};
   const current = await getSettings();
-  const cfg = validateDbConfig(
-    overrideConfig && overrideConfig.dbWebAppUrl !== undefined ? overrideConfig.dbWebAppUrl : current.dbWebAppUrl,
-    overrideConfig && overrideConfig.dbSecretToken !== undefined ? overrideConfig.dbSecretToken : current.dbSecretToken
+  const projectId = validateProjectId(
+    opts.projectId !== undefined ? opts.projectId : current.firestoreProjectId
   );
 
-  const bodyPayload = {
-    secretToken: cfg.token,
-    action: 'push',
-    payload: {
-      operators: current.operators,
-      equipmentPairs: buildEquipmentPairsPayload(),
-      skipRunningKeywords: current.skipRunningKeywords,
-      skipStandbyKeywords: current.skipStandbyKeywords
-    }
-  };
-
-  let response;
+  let equipDocs;
+  let configDoc;
   try {
-    response = await fetch(cfg.url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8'
-      },
-      body: JSON.stringify(bodyPayload)
+    [equipDocs, configDoc] = await Promise.all([
+      fetchAllEquipmentDocs(projectId, opts.signal),
+      fetchTpmConfigDoc(projectId, opts.signal)
+    ]);
+  } catch (err) {
+    if (!opts.silent) {
+      await saveSettings({
+        firestoreProjectId: projectId,
+        syncStatus: 'error',
+        syncMessage: err && err.message ? err.message : 'Gagal terhubung ke Firestore.'
+      });
+    }
+    throw new Error(
+      err && err.name === 'AbortError'
+        ? 'Koneksi Firestore timeout (cache lokal tetap digunakan).'
+        : (err && err.message) || 'Gagal menarik data dari Cloud Firestore.'
+    );
+  }
+
+  const remoteStatusByTag = new Map();
+  for (const doc of equipDocs || []) {
+    const fields = (doc && doc.fields) || {};
+    const nameTail = doc && typeof doc.name === 'string'
+      ? decodeURIComponent(doc.name.split('/').pop() || '')
+      : '';
+    const tag = String((fields.tag && fields.tag.stringValue) || nameTail).trim();
+    const status = String((fields.status && fields.status.stringValue) || '').trim().toUpperCase();
+    if (!tag || !VALID_STATES.has(status)) continue;
+    remoteStatusByTag.set(tag, status);
+  }
+
+  // Empty-data guard: never overwrite local operator maps if Firestore returned 0 valid documents
+  let mergedOperators = current.operators;
+  let equipmentUpdated = false;
+  if (remoteStatusByTag.size > 0) {
+    equipmentUpdated = true;
+    mergedOperators = {
+      op1: { ...(current.operators && current.operators.op1) },
+      op2: { ...(current.operators && current.operators.op2) },
+      op3: { ...(current.operators && current.operators.op3) }
+    };
+    for (const opId of VALID_OPERATOR_IDS) {
+      const opMap = mergedOperators[opId];
+      for (const tag of Object.keys(opMap)) {
+        if (remoteStatusByTag.has(tag)) {
+          opMap[tag] = remoteStatusByTag.get(tag);
+        }
+      }
+    }
+  }
+
+  const configFields = configDoc && configDoc.fields ? configDoc.fields : null;
+  const nextSkipRunning = configFields && configFields.skipRunningKeywords !== undefined
+    ? extractFirestoreStringArray(configFields.skipRunningKeywords)
+    : current.skipRunningKeywords;
+  const nextSkipStandby = configFields && configFields.skipStandbyKeywords !== undefined
+    ? extractFirestoreStringArray(configFields.skipStandbyKeywords)
+    : current.skipStandbyKeywords;
+
+  const syncedAt = new Date().toISOString();
+  const nextSettings = await saveSettings({
+    firestoreProjectId: projectId,
+    operators: mergedOperators,
+    skipRunningKeywords: nextSkipRunning,
+    skipStandbyKeywords: nextSkipStandby,
+    lastSyncAt: syncedAt,
+    syncStatus: 'synced',
+    syncMessage: equipmentUpdated
+      ? 'Pull berhasil (' + remoteStatusByTag.size + ' unit)'
+      : 'Pull selesai (0 unit remote; data lokal dipertahankan)'
+  });
+
+  return {
+    settings: nextSettings,
+    remoteUnitCount: remoteStatusByTag.size,
+    equipmentUpdated: equipmentUpdated,
+    configFound: Boolean(configDoc)
+  };
+}
+
+export async function pushToFirestore(options) {
+  const opts = options || {};
+  const current = await getSettings();
+  const projectId = validateProjectId(
+    opts.projectId !== undefined ? opts.projectId : current.firestoreProjectId
+  );
+
+  const uniqueEntries = new Map();
+  for (const opId of VALID_OPERATOR_IDS) {
+    const opMap = (current.operators && current.operators[opId]) || {};
+    for (const [rawTag, rawStatus] of Object.entries(opMap)) {
+      const tag = String(rawTag || '').trim();
+      const status = String(rawStatus || '').trim().toUpperCase();
+      if (!tag) continue;
+      if (tag.length > 25) {
+        throw new Error('Tag "' + tag + '" melebihi batas 25 karakter aturan Firestore.');
+      }
+      if (!VALID_STATES.has(status)) {
+        throw new Error('Status "' + status + '" tidak valid untuk tag "' + tag + '".');
+      }
+      uniqueEntries.set(tag, status);
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  const tasks = Array.from(uniqueEntries.entries());
+  const BATCH_SIZE = 8;
+
+  try {
+    for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
+      const chunk = tasks.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        chunk.map(async function ([tag, status]) {
+          const docUrl =
+            'https://firestore.googleapis.com/v1/projects/' +
+            encodeURIComponent(projectId) +
+            '/databases/(default)/documents/equipments/' +
+            encodeURIComponent(tag) +
+            '?updateMask.fieldPaths=tag&updateMask.fieldPaths=status&updateMask.fieldPaths=updatedAt';
+
+          const res = await fetch(docUrl, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fields: {
+                tag: { stringValue: tag },
+                status: { stringValue: status },
+                updatedAt: { timestampValue: nowIso }
+              }
+            })
+          });
+
+          if (!res.ok) {
+            throw new Error('Gagal menulis tag ' + tag + ' (HTTP ' + res.status + ')');
+          }
+        })
+      );
+    }
+
+    const configUrl =
+      'https://firestore.googleapis.com/v1/projects/' +
+      encodeURIComponent(projectId) +
+      '/databases/(default)/documents/config/tpm_settings' +
+      '?updateMask.fieldPaths=skipRunningKeywords&updateMask.fieldPaths=skipStandbyKeywords&updateMask.fieldPaths=updatedAt';
+
+    const skipRun = Array.isArray(current.skipRunningKeywords) ? current.skipRunningKeywords : [];
+    const skipStby = Array.isArray(current.skipStandbyKeywords) ? current.skipStandbyKeywords : [];
+
+    const cfgRes = await fetch(configUrl, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          skipRunningKeywords: {
+            arrayValue: {
+              values: skipRun.map((s) => ({ stringValue: s }))
+            }
+          },
+          skipStandbyKeywords: {
+            arrayValue: {
+              values: skipStby.map((s) => ({ stringValue: s }))
+            }
+          },
+          updatedAt: { timestampValue: nowIso }
+        }
+      })
     });
+
+    if (!cfgRes.ok) {
+      throw new Error('Gagal menulis config/tpm_settings (HTTP ' + cfgRes.status + ')');
+    }
   } catch (err) {
     await saveSettings({
-      dbSyncStatus: 'error',
-      dbSyncMessage: 'Gagal terhubung ke server (offline).'
+      firestoreProjectId: projectId,
+      syncStatus: 'error',
+      syncMessage: err && err.message ? err.message : 'Push ke Firestore gagal.'
     });
-    throw new Error('Gagal mengirim ke server Google Sheets (mode offline tetap aman).');
-  }
-
-  if (!response.ok) {
-    await saveSettings({
-      dbSyncStatus: 'error',
-      dbSyncMessage: 'HTTP ' + response.status
-    });
-    throw new Error('Server mengembalikan HTTP ' + response.status);
-  }
-
-  const json = await response.json();
-  if (!json || json.status !== 'ok') {
-    const errMsg = (json && json.message) || 'Push ke Google Sheets gagal.';
-    await saveSettings({
-      dbSyncStatus: 'error',
-      dbSyncMessage: errMsg
-    });
-    throw new Error(errMsg);
+    throw err;
   }
 
   const nextSettings = await saveSettings({
-    dbWebAppUrl: cfg.url,
-    dbSecretToken: cfg.token,
-    dbLastSyncAt: json.updatedAt || new Date().toISOString(),
-    dbSyncStatus: 'synced',
-    dbSyncMessage: 'Push berhasil'
+    firestoreProjectId: projectId,
+    lastSyncAt: nowIso,
+    syncStatus: 'synced',
+    syncMessage: 'Push berhasil (' + tasks.length + ' unit)'
   });
 
-  return nextSettings;
+  return {
+    settings: nextSettings,
+    pushedUnitCount: tasks.length
+  };
 }
 
 export function onChanged(callback) {
@@ -491,13 +631,14 @@ export function applyTheme(theme) {
 
 export const TPMStorage = {
   STORAGE_KEY,
+  DEFAULT_FIRESTORE_PROJECT_ID,
+  RUNNING_STATUS_CHECKER_URL,
   EQUIPMENT_DB,
   OPERATOR_PRESETS,
   KEYWORD_TEMPLATES,
   VALID_OPERATOR_IDS,
   normalizeKeywordArray,
   buildDefaultEquipmentMap,
-  buildEquipmentPairsPayload,
   createDefaultSettings,
   normalizeState,
   getSettings,
@@ -506,8 +647,8 @@ export const TPMStorage = {
   resetOperatorDefaults,
   appendHistory,
   clearHistory,
-  pullFromCentralDb,
-  pushToCentralDb,
+  pullFromFirestore,
+  pushToFirestore,
   onChanged,
   countEquipmentStates,
   matchesUrlPattern,

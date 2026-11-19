@@ -14,8 +14,8 @@
         <div class="brand-text-wrap">
           <h1 class="popup-title">TPM Smart Checklist</h1>
           <div class="brand-sub-row">
-            <span id="popup-version" class="version-pill">v2.0.0</span>
-            <span id="popup-debug-badge" class="debug-badge is-hidden"></span>
+            <span id="popup-version" class="version-pill">v2.1.0</span>
+            <span id="popup-dev-badge" class="dev-badge is-hidden"></span>
           </div>
         </div>
       </div>
@@ -49,12 +49,12 @@
         <span id="ctx-date-val" class="context-date-val">-</span>
       </div>
       <div id="execute-guard-hint" class="guard-hint is-hidden">
-        Buka halaman TPM Execution Operator 1, 2, atau 3 untuk menjalankan.
+        Buka halaman Operator 1, 2, atau 3 dulu.
       </div>
     </section>
 
-    <!-- Manual Operator Selector (Debug Mode Only) -->
-    <section class="operator-card debug-only" aria-label="Pilih Operator Manual">
+    <!-- Manual Operator Selector (Dev Mode Only) -->
+    <section class="operator-card dev-only" aria-label="Pilih Operator Manual">
       <div class="operator-seg" role="tablist" aria-label="Preset Operator">
         <button type="button" role="tab" class="op-seg-btn is-active" data-operator="op1">Operator 1</button>
         <button type="button" role="tab" class="op-seg-btn" data-operator="op2">Operator 2</button>
@@ -89,15 +89,15 @@
         <input id="include-every-shift" type="checkbox" checked />
         <span>Sertakan task Every Shift</span>
       </label>
-      <label class="checkbox-row debug-only" for="auto-show-all-rows">
+      <label class="checkbox-row dev-only" for="auto-show-all-rows">
         <input id="auto-show-all-rows" type="checkbox" checked />
         <span>Auto-tampilkan semua baris (300+)</span>
       </label>
     </div>
 
     <div class="action-grid">
-      <button id="dry-run-btn" type="button" class="btn btn-dry debug-only"></button>
-      <button id="clear-dry-run-btn" type="button" class="btn btn-clear debug-only" title="Bersihkan sorotan Dry Run"></button>
+      <button id="dry-run-btn" type="button" class="btn btn-dry dev-only"></button>
+      <button id="clear-dry-run-btn" type="button" class="btn btn-clear dev-only" title="Bersihkan sorotan Dry Run"></button>
       <button id="execute-btn" type="button" class="btn btn-primary"></button>
     </div>
 
@@ -112,7 +112,7 @@
       <div id="summary-status" class="summary-status">
         Siap memindai tabel checklist pada tab aktif.
       </div>
-      <div class="stats-grid debug-only">
+      <div class="stats-grid dev-only">
         <div class="stat-item">
           <span class="stat-name">Total Discan</span>
           <span id="stat-scanned" class="stat-val">0</span>

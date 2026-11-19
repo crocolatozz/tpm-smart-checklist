@@ -1,25 +1,28 @@
 import { createSvgIcon, hydrateIcons } from './icons.js';
-import { TPMStorage as Storage } from './storage.js';
+import { TPMStorage as Storage, RUNNING_STATUS_CHECKER_URL } from './storage.js';
 import { EQUIPMENT_DB, TASK_KEYWORD_TEMPLATES } from './equipment-db.js';
 
 const elVersion = document.getElementById('options-version');
-const elDebugBadge = document.getElementById('options-debug-badge');
-const elDebugToggle = document.getElementById('debug-mode-toggle');
+const elDevBadge = document.getElementById('options-dev-badge');
+const elDevToggle = document.getElementById('dev-mode-toggle');
 const elFooterVer = document.getElementById('options-footer-ver');
 const elThemeBtn = document.getElementById('options-theme-btn');
+const elOpenRscBtn = document.getElementById('open-rsc-btn');
 
 const elSkipRunningSelect = document.getElementById('skip-running-select');
 const elSkipRunningPills = document.getElementById('skip-running-pills');
 const elSkipStandbySelect = document.getElementById('skip-standby-select');
 const elSkipStandbyPills = document.getElementById('skip-standby-pills');
 
-const elDbStatusBadge = document.getElementById('db-status-badge');
-const elDbLastSyncText = document.getElementById('db-last-sync-text');
-const elDbAutoPullToggle = document.getElementById('db-auto-pull-toggle');
-const elDbUrlInput = document.getElementById('db-url-input');
-const elDbTokenInput = document.getElementById('db-token-input');
-const elDbPullBtn = document.getElementById('db-pull-btn');
-const elDbPushBtn = document.getElementById('db-push-btn');
+const elFsStatusBadge = document.getElementById('fs-status-badge');
+const elFsLastSyncText = document.getElementById('fs-last-sync-text');
+const elFsAutoPullToggle = document.getElementById('fs-auto-pull-toggle');
+const elFsProjectIdInput = document.getElementById('fs-project-id-input');
+const elFsPullBtn = document.getElementById('fs-pull-btn');
+const elFsPushBtn = document.getElementById('fs-push-btn');
+const elPushConfirmPanel = document.getElementById('push-confirm-panel');
+const elPushCancelBtn = document.getElementById('push-cancel-btn');
+const elPushConfirmBtn = document.getElementById('push-confirm-btn');
 const elUrlPattern = document.getElementById('url-pattern-input');
 const elClickDelay = document.getElementById('click-delay-input');
 
@@ -108,17 +111,21 @@ function renderThemeButton(theme) {
 
 function renderStaticIcons() {
   hydrateIcons(document);
-  elDebugBadge.replaceChildren(createSvgIcon('bug', 11), document.createTextNode('DEBUG'));
+  elDevBadge.replaceChildren(createSvgIcon('bug', 11), document.createTextNode('DEV'));
+  elOpenRscBtn.replaceChildren(
+    createSvgIcon('external-link', 14),
+    document.createTextNode('Buka Running Status Checker')
+  );
   elScrapeBtn.replaceChildren(createSvgIcon('scan', 14), document.createTextNode('Ambil Tag dari Tab Aktif'));
   elBulkPasteBtn.replaceChildren(createSvgIcon('plus', 14), document.createTextNode('Bulk Paste Tag'));
   elResetDefaultBtn.replaceChildren(createSvgIcon('rotate-ccw', 14), document.createTextNode('Reset Default Operator Ini'));
-  elDbPullBtn.replaceChildren(createSvgIcon('cloud-download', 14), document.createTextNode('Pull dari DB'));
-  elDbPushBtn.replaceChildren(createSvgIcon('cloud-upload', 14), document.createTextNode('Push ke DB'));
+  elFsPullBtn.replaceChildren(createSvgIcon('cloud-download', 14), document.createTextNode('Ambil Data (Pull)'));
+  elFsPushBtn.replaceChildren(createSvgIcon('cloud-upload', 14), document.createTextNode('Simpan ke DB (Push)'));
   elClearHistoryBtn.replaceChildren(createSvgIcon('trash', 13), document.createTextNode('Bersihkan Riwayat'));
   elBulkCloseBtn.replaceChildren(createSvgIcon('x', 15));
 }
 
-function renderKeywordControl(selectEl, pillBoxEl, selectedKeywords, groupKey) {
+function renderKeywordControl(selectEl, pillBoxEl, selectedKeywords, groupKey, isEditable) {
   const selectedList = Array.isArray(selectedKeywords) ? selectedKeywords : [];
   const selectedLower = new Set(selectedList.map((k) => k.toLowerCase()));
 
@@ -140,7 +147,9 @@ function renderKeywordControl(selectEl, pillBoxEl, selectedKeywords, groupKey) {
   selectEl.replaceChildren();
   const placeholderOpt = document.createElement('option');
   placeholderOpt.value = '';
-  placeholderOpt.textContent = '+ Pilih kata kunci tugas...';
+  placeholderOpt.textContent = isEditable
+    ? '+ Pilih kata kunci tugas...'
+    : 'Mode baca-saja (aktifkan Dev Mode untuk edit)';
   selectEl.appendChild(placeholderOpt);
 
   for (const item of optionPool) {
@@ -152,6 +161,7 @@ function renderKeywordControl(selectEl, pillBoxEl, selectedKeywords, groupKey) {
     selectEl.appendChild(opt);
   }
   selectEl.value = '';
+  selectEl.disabled = !isEditable;
 
   pillBoxEl.replaceChildren();
   if (selectedList.length === 0) {
@@ -168,44 +178,43 @@ function renderKeywordControl(selectEl, pillBoxEl, selectedKeywords, groupKey) {
 
     const label = document.createElement('span');
     label.textContent = kw;
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'kw-pill-remove';
-    removeBtn.setAttribute('aria-label', 'Hapus kata kunci ' + kw);
-    removeBtn.setAttribute('data-kw-group', groupKey);
-    removeBtn.setAttribute('data-kw-value', kw);
-    removeBtn.appendChild(createSvgIcon('x', 11));
-
     pill.appendChild(label);
-    pill.appendChild(removeBtn);
+
+    if (isEditable) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'kw-pill-remove';
+      removeBtn.setAttribute('aria-label', 'Hapus kata kunci ' + kw);
+      removeBtn.setAttribute('data-kw-group', groupKey);
+      removeBtn.setAttribute('data-kw-value', kw);
+      removeBtn.appendChild(createSvgIcon('x', 11));
+      pill.appendChild(removeBtn);
+    }
+
     pillBoxEl.appendChild(pill);
   }
 }
 
 function renderSyncSection(settings) {
-  if (document.activeElement !== elDbUrlInput) {
-    elDbUrlInput.value = settings.dbWebAppUrl || '';
+  if (document.activeElement !== elFsProjectIdInput) {
+    elFsProjectIdInput.value = settings.firestoreProjectId || Storage.DEFAULT_FIRESTORE_PROJECT_ID;
   }
-  if (document.activeElement !== elDbTokenInput) {
-    elDbTokenInput.value = settings.dbSecretToken || '';
-  }
-  elDbAutoPullToggle.checked = Boolean(settings.dbAutoPull);
+  elFsAutoPullToggle.checked = Boolean(settings.autoPullOnOpen);
 
-  elDbStatusBadge.classList.remove('is-synced', 'is-offline', 'is-error');
-  if (settings.dbSyncStatus === 'synced') {
-    elDbStatusBadge.classList.add('is-synced');
-    elDbStatusBadge.textContent = 'Terhubung · Synced';
-  } else if (settings.dbSyncStatus === 'error') {
-    elDbStatusBadge.classList.add('is-error');
-    elDbStatusBadge.textContent = 'Gagal Sync (Cache Lokal Aktif)';
+  elFsStatusBadge.classList.remove('is-synced', 'is-offline', 'is-error');
+  if (settings.syncStatus === 'synced') {
+    elFsStatusBadge.classList.add('is-synced');
+    elFsStatusBadge.textContent = 'Terhubung · Synced';
+  } else if (settings.syncStatus === 'error') {
+    elFsStatusBadge.classList.add('is-error');
+    elFsStatusBadge.textContent = 'Gagal Sync (Cache Lokal Aktif)';
   } else {
-    elDbStatusBadge.classList.add('is-offline');
-    elDbStatusBadge.textContent = 'Offline Cache';
+    elFsStatusBadge.classList.add('is-offline');
+    elFsStatusBadge.textContent = 'Cache Lokal';
   }
 
-  elDbLastSyncText.textContent = settings.dbLastSyncAt
-    ? 'Sinkron terakhir: ' + formatTimestamp(settings.dbLastSyncAt)
+  elFsLastSyncText.textContent = settings.lastSyncAt
+    ? 'Sinkron terakhir: ' + formatTimestamp(settings.lastSyncAt)
     : 'Belum pernah sinkronisasi';
 }
 
@@ -257,19 +266,22 @@ function findPartnerMap(opId, equipmentMap) {
   return partnerOf;
 }
 
-function createCompactSwapButton(tagA, tagB) {
+function createCompactSwapButton(tagA, tagB, isEditable) {
   const swapBtn = document.createElement('button');
   swapBtn.type = 'button';
   swapBtn.className = 'btn-swap-icon';
-  swapBtn.title = 'Tukar status pasangan atas-bawah (' + tagA + ' / ' + tagB + ')';
+  swapBtn.title = isEditable
+    ? 'Tukar status pasangan atas-bawah (' + tagA + ' / ' + tagB + ')'
+    : 'Aktifkan Dev Mode untuk menukar status unit';
   swapBtn.setAttribute('aria-label', 'Tukar status ' + tagA + ' dan ' + tagB);
   swapBtn.setAttribute('data-swap-a', tagA);
   swapBtn.setAttribute('data-swap-b', tagB);
+  swapBtn.disabled = !isEditable;
   swapBtn.appendChild(createSvgIcon('swap-vertical', 14));
   return swapBtn;
 }
 
-function buildSingleEquipRow(tag, state, inlinePartnerTag, omitGutter) {
+function buildSingleEquipRow(tag, state, inlinePartnerTag, omitGutter, isEditable) {
   const row = document.createElement('div');
   row.className = 'equip-row';
 
@@ -280,7 +292,7 @@ function buildSingleEquipRow(tag, state, inlinePartnerTag, omitGutter) {
     if (inlinePartnerTag) {
       const gutter = document.createElement('span');
       gutter.className = 'equip-gutter';
-      gutter.appendChild(createCompactSwapButton(tag, inlinePartnerTag));
+      gutter.appendChild(createCompactSwapButton(tag, inlinePartnerTag, isEditable));
       left.appendChild(gutter);
     } else {
       const spacer = document.createElement('span');
@@ -316,6 +328,7 @@ function buildSingleEquipRow(tag, state, inlinePartnerTag, omitGutter) {
     btn.textContent = item.label;
     btn.setAttribute('data-tag', tag);
     btn.setAttribute('data-state', item.key);
+    btn.disabled = !isEditable;
     seg.appendChild(btn);
   }
 
@@ -342,6 +355,7 @@ function renderOperatorTabs() {
 function renderEquipmentList() {
   renderOperatorTabs();
 
+  const isEditable = Boolean(currentSettings.devMode);
   const map = (currentSettings.operators && currentSettings.operators[selectedOpId]) || {};
   const counts = Storage.countEquipmentStates(map);
   elCountAll.textContent = String(counts.total);
@@ -383,19 +397,19 @@ function renderEquipmentList() {
 
       const pairRows = document.createElement('div');
       pairRows.className = 'equip-pair-rows';
-      pairRows.appendChild(buildSingleEquipRow(tag, state, null, true));
-      pairRows.appendChild(buildSingleEquipRow(partnerTag, visibleLookup.get(partnerTag), null, true));
+      pairRows.appendChild(buildSingleEquipRow(tag, state, null, true, isEditable));
+      pairRows.appendChild(buildSingleEquipRow(partnerTag, visibleLookup.get(partnerTag), null, true, isEditable));
 
       const swapCol = document.createElement('div');
       swapCol.className = 'equip-pair-swap-col';
-      swapCol.appendChild(createCompactSwapButton(tag, partnerTag));
+      swapCol.appendChild(createCompactSwapButton(tag, partnerTag, isEditable));
 
       pairGroup.appendChild(swapCol);
       pairGroup.appendChild(pairRows);
       fragment.appendChild(pairGroup);
     } else {
       renderedTags.add(tag);
-      fragment.appendChild(buildSingleEquipRow(tag, state, partnerTag || null, false));
+      fragment.appendChild(buildSingleEquipRow(tag, state, partnerTag || null, false, isEditable));
     }
   }
 
@@ -490,16 +504,19 @@ function renderHistory() {
 
 function renderAll(settings) {
   currentSettings = settings;
-  const isDebug = Boolean(settings.debugMode);
+  const isDev = Boolean(settings.devMode);
 
   Storage.applyTheme(settings.theme);
-  document.body.classList.toggle('is-debug', isDebug);
-  elDebugToggle.checked = isDebug;
-  elDebugBadge.classList.toggle('is-hidden', !isDebug);
+  document.body.classList.toggle('is-dev', isDev);
+  elDevToggle.checked = isDev;
+  elDevBadge.classList.toggle('is-hidden', !isDev);
+  if (!isDev) {
+    elPushConfirmPanel.classList.add('is-hidden');
+  }
   renderThemeButton(settings.theme);
 
-  renderKeywordControl(elSkipRunningSelect, elSkipRunningPills, settings.skipRunningKeywords, 'running');
-  renderKeywordControl(elSkipStandbySelect, elSkipStandbyPills, settings.skipStandbyKeywords, 'standby');
+  renderKeywordControl(elSkipRunningSelect, elSkipRunningPills, settings.skipRunningKeywords, 'running', isDev);
+  renderKeywordControl(elSkipStandbySelect, elSkipStandbyPills, settings.skipStandbyKeywords, 'standby', isDev);
   renderSyncSection(settings);
 
   if (document.activeElement !== elUrlPattern) {
@@ -564,6 +581,7 @@ function scrapeActiveTabTags() {
 }
 
 function openBulkModal() {
+  if (!currentSettings.devMode) return;
   const preset = EQUIPMENT_DB[selectedOpId] || EQUIPMENT_DB.op1;
   elBulkModalDesc.textContent =
     'Tempel daftar tag (satu tag per baris) untuk ditambahkan ke ' + preset.label + '.';
@@ -576,60 +594,69 @@ function closeBulkModal() {
   elBulkModal.classList.add('is-hidden');
 }
 
-function setDbSyncBusy(busy) {
+function setFirestoreSyncBusy(busy) {
   isSyncBusy = busy;
-  elDbPullBtn.disabled = busy;
-  elDbPushBtn.disabled = busy;
+  elFsPullBtn.disabled = busy;
+  elFsPushBtn.disabled = busy;
+  elPushConfirmBtn.disabled = busy;
+  elPushCancelBtn.disabled = busy;
 }
 
-async function handlePullFromDb(isSilentAuto) {
+async function handlePullFromFirestore(isSilentAuto) {
   if (isSyncBusy) return;
-  setDbSyncBusy(true);
+  setFirestoreSyncBusy(true);
   try {
-    const updated = await Storage.pullFromCentralDb({
-      dbWebAppUrl: elDbUrlInput.value.trim(),
-      dbSecretToken: elDbTokenInput.value.trim()
+    const projectId = elFsProjectIdInput.value.trim() || currentSettings.firestoreProjectId;
+    const res = await Storage.pullFromFirestore({
+      projectId: projectId,
+      silent: Boolean(isSilentAuto)
     });
-    renderAll(updated);
-    showToast(
-      isSilentAuto ? 'Auto-Pull Google Sheets berhasil.' : 'Data berhasil ditarik dari Google Sheets.',
-      'success'
-    );
+    renderAll(res.settings);
+    if (res.remoteUnitCount === 0) {
+      showToast('Firestore kosong (0 unit), status lokal dipertahankan.', 'warning');
+    } else {
+      showToast(
+        isSilentAuto
+          ? 'Auto-Pull Firestore berhasil (' + res.remoteUnitCount + ' unit).'
+          : 'Data berhasil ditarik dari Firestore (' + res.remoteUnitCount + ' unit).',
+        'success'
+      );
+    }
   } catch (err) {
     const refreshed = await Storage.getSettings();
     renderAll(refreshed);
     showToast(
-      err && err.message ? err.message : 'Gagal menarik data dari Google Sheets.',
+      err && err.message ? err.message : 'Gagal menarik data dari Cloud Firestore.',
       isSilentAuto ? 'warning' : 'error'
     );
   } finally {
-    setDbSyncBusy(false);
+    setFirestoreSyncBusy(false);
   }
 }
 
-async function handlePushToDb() {
-  if (isSyncBusy) return;
-  setDbSyncBusy(true);
+async function handlePushToFirestoreConfirmed() {
+  if (isSyncBusy || !currentSettings.devMode) return;
+  setFirestoreSyncBusy(true);
   try {
-    const updated = await Storage.pushToCentralDb({
-      dbWebAppUrl: elDbUrlInput.value.trim(),
-      dbSecretToken: elDbTokenInput.value.trim()
-    });
-    renderAll(updated);
-    showToast('Master unit & kata kunci berhasil dikirim ke Google Sheets.', 'success');
+    const projectId = elFsProjectIdInput.value.trim() || currentSettings.firestoreProjectId;
+    const res = await Storage.pushToFirestore({ projectId: projectId });
+    elPushConfirmPanel.classList.add('is-hidden');
+    renderAll(res.settings);
+    showToast('Berhasil menyimpan ' + res.pushedUnitCount + ' unit & kata kunci ke Firestore.', 'success');
   } catch (err) {
     const refreshed = await Storage.getSettings();
     renderAll(refreshed);
     showToast(
-      err && err.message ? err.message : 'Gagal mengirim data ke Google Sheets.',
+      err && err.message ? err.message : 'Gagal mengirim data ke Cloud Firestore.',
       'error'
     );
   } finally {
-    setDbSyncBusy(false);
+    setFirestoreSyncBusy(false);
   }
 }
 
 async function addKeywordToGroup(groupKey, value) {
+  if (!currentSettings.devMode) return;
   const clean = String(value || '').trim();
   if (!clean) return;
   const field = groupKey === 'running' ? 'skipRunningKeywords' : 'skipStandbyKeywords';
@@ -645,12 +672,27 @@ async function addKeywordToGroup(groupKey, value) {
 }
 
 async function removeKeywordFromGroup(groupKey, value) {
+  if (!currentSettings.devMode) return;
   const field = groupKey === 'running' ? 'skipRunningKeywords' : 'skipStandbyKeywords';
   const list = Array.isArray(currentSettings[field]) ? currentSettings[field] : [];
   const nextList = list.filter((k) => k.toLowerCase() !== String(value || '').toLowerCase());
   const updated = await Storage.saveSettings({ [field]: nextList });
   renderAll(updated);
   showToast('Kata kunci "' + value + '" dihapus.', 'info');
+}
+
+function openRunningStatusChecker() {
+  if (typeof chrome !== 'undefined' && chrome.tabs && typeof chrome.tabs.create === 'function') {
+    chrome.tabs.create({ url: RUNNING_STATUS_CHECKER_URL });
+    return;
+  }
+  const link = document.createElement('a');
+  link.href = RUNNING_STATUS_CHECKER_URL;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 async function init() {
@@ -672,8 +714,8 @@ async function init() {
   selectedOpId = Storage.VALID_OPERATOR_IDS.includes(queryOp) ? queryOp : lastSyncedActiveOp;
   renderAll(initial);
 
-  if (initial.dbAutoPull && initial.dbWebAppUrl && initial.dbSecretToken) {
-    handlePullFromDb(true);
+  if (initial.autoPullOnOpen) {
+    handlePullFromFirestore(true);
   }
 
   Storage.onChanged(function (updated) {
@@ -701,11 +743,13 @@ async function init() {
     });
   }
 
-  elDebugToggle.addEventListener('change', async function () {
-    const nextDebug = Boolean(elDebugToggle.checked);
-    const updated = await Storage.saveSettings({ debugMode: nextDebug });
+  elOpenRscBtn.addEventListener('click', openRunningStatusChecker);
+
+  elDevToggle.addEventListener('change', async function () {
+    const nextDev = Boolean(elDevToggle.checked);
+    const updated = await Storage.saveSettings({ devMode: nextDev });
     renderAll(updated);
-    showToast(nextDebug ? 'Debug Mode diaktifkan.' : 'Debug Mode dimatikan (Mode Operasional).', 'info');
+    showToast(nextDev ? 'Dev Mode aktif (mode edit terbuka).' : 'Dev Mode nonaktif (mode baca-saja).', 'info');
   });
 
   elThemeBtn.addEventListener('click', async function () {
@@ -727,7 +771,7 @@ async function init() {
 
   document.addEventListener('click', function (e) {
     const removeBtn = e.target.closest('button.kw-pill-remove[data-kw-group][data-kw-value]');
-    if (!removeBtn) return;
+    if (!removeBtn || removeBtn.disabled) return;
     removeKeywordFromGroup(
       removeBtn.getAttribute('data-kw-group'),
       removeBtn.getAttribute('data-kw-value')
@@ -740,8 +784,7 @@ async function init() {
     fieldSaveTimer = setTimeout(async function () {
       const delayVal = Number(elClickDelay.value);
       const updated = await Storage.saveSettings({
-        dbWebAppUrl: elDbUrlInput.value.trim(),
-        dbSecretToken: elDbTokenInput.value.trim(),
+        firestoreProjectId: elFsProjectIdInput.value.trim() || Storage.DEFAULT_FIRESTORE_PROJECT_ID,
         targetUrlPattern: elUrlPattern.value.trim() || '*',
         clickDelayMs: Number.isFinite(delayVal) && delayVal >= 0 ? delayVal : 150
       });
@@ -750,26 +793,35 @@ async function init() {
     }, 300);
   }
 
-  elDbUrlInput.addEventListener('input', scheduleFieldSave);
-  elDbTokenInput.addEventListener('input', scheduleFieldSave);
+  elFsProjectIdInput.addEventListener('input', scheduleFieldSave);
   elUrlPattern.addEventListener('input', scheduleFieldSave);
   elClickDelay.addEventListener('input', scheduleFieldSave);
 
-  elDbAutoPullToggle.addEventListener('change', async function () {
-    const updated = await Storage.saveSettings({ dbAutoPull: Boolean(elDbAutoPullToggle.checked) });
+  elFsAutoPullToggle.addEventListener('change', async function () {
+    const updated = await Storage.saveSettings({ autoPullOnOpen: Boolean(elFsAutoPullToggle.checked) });
     renderAll(updated);
     showToast(
-      updated.dbAutoPull ? 'Auto-Pull saat dibuka diaktifkan.' : 'Auto-Pull dimatikan.',
+      updated.autoPullOnOpen ? 'Auto-Ambil saat Popup Dibuka aktif.' : 'Auto-Ambil saat Popup Dibuka dimatikan.',
       'info'
     );
   });
 
-  elDbPullBtn.addEventListener('click', function () {
-    handlePullFromDb(false);
+  elFsPullBtn.addEventListener('click', function () {
+    elPushConfirmPanel.classList.add('is-hidden');
+    handlePullFromFirestore(false);
   });
 
-  elDbPushBtn.addEventListener('click', function () {
-    handlePushToDb();
+  elFsPushBtn.addEventListener('click', function () {
+    if (!currentSettings.devMode || isSyncBusy) return;
+    elPushConfirmPanel.classList.remove('is-hidden');
+  });
+
+  elPushCancelBtn.addEventListener('click', function () {
+    elPushConfirmPanel.classList.add('is-hidden');
+  });
+
+  elPushConfirmBtn.addEventListener('click', function () {
+    handlePushToFirestoreConfirmed();
   });
 
   elSearchInput.addEventListener('input', renderEquipmentList);
@@ -785,8 +837,10 @@ async function init() {
   }
 
   elEquipList.addEventListener('click', async function (e) {
+    if (!currentSettings.devMode) return;
+
     const swapBtn = e.target.closest('button[data-swap-a][data-swap-b]');
-    if (swapBtn) {
+    if (swapBtn && !swapBtn.disabled) {
       const tagA = swapBtn.getAttribute('data-swap-a');
       const tagB = swapBtn.getAttribute('data-swap-b');
       const currentMap = (currentSettings.operators && currentSettings.operators[selectedOpId]) || {};
@@ -804,7 +858,7 @@ async function init() {
     }
 
     const btn = e.target.closest('button[data-tag][data-state]');
-    if (!btn) return;
+    if (!btn || btn.disabled) return;
     const tag = btn.getAttribute('data-tag');
     const nextState = btn.getAttribute('data-state');
     const currentMap = (currentSettings.operators && currentSettings.operators[selectedOpId]) || {};
@@ -815,6 +869,7 @@ async function init() {
   });
 
   elScrapeBtn.addEventListener('click', async function () {
+    if (!currentSettings.devMode) return;
     try {
       const foundTags = await scrapeActiveTabTags();
       if (foundTags.length === 0) {
@@ -847,6 +902,7 @@ async function init() {
   elBulkCancelBtn.addEventListener('click', closeBulkModal);
 
   elBulkApplyBtn.addEventListener('click', async function () {
+    if (!currentSettings.devMode) return;
     const lines = elBulkTextarea.value
       .split(/\r?\n/)
       .map((line) => line.trim())
@@ -875,6 +931,7 @@ async function init() {
   });
 
   elResetDefaultBtn.addEventListener('click', async function () {
+    if (!currentSettings.devMode) return;
     const preset = EQUIPMENT_DB[selectedOpId] || EQUIPMENT_DB.op1;
     const updated = await Storage.resetOperatorDefaults(selectedOpId);
     renderAll(updated);

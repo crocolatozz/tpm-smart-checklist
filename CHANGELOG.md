@@ -2,6 +2,22 @@
 
 Semua perubahan penting pada **TPM Smart Checklist** dicatat dalam file ini.
 
+## [2.1.0] - 2026-11-19
+
+### Added
+- **Integrasi Cloud Firestore REST API (`manifest.json`, `storage.js`, `options.html`, `options.js`, `popup.js`)**: Migrasi backend terpusat ke proyek Cloud Firestore `urea1b-running-status` melalui Firestore REST API (`GET` dengan `pageSize=200` + pagination `nextPageToken`, graceful fallback HTTP `404` untuk `config/tpm_settings`, dan `PATCH` terbatasi max 8 request paralel saat Push di Dev Mode), menyinkronkan status unit dan kata kunci pengecualian secara seamless dengan `https://crocolatozz.github.io/running-status-checker/` serta `Auto-Ambil saat Popup Dibuka` (timeout `2500ms` via `AbortController`).
+- **Tombol Akses Cepat Running Status Checker (`options.html`, `options.js`, `icons.js`)**: Menambahkan tombol `Buka Running Status Checker` di Halaman Options yang tersedia pada mode operasional maupun Dev Mode.
+- **Konfirmasi Inline Push Firestore (`options.html`, `options.js`, `styles.css`)**: Panel konfirmasi inline pengganti dialog bawaan browser saat akan menimpa database Firestore (`Simpan ke DB (Push)`).
+
+### Changed
+- **Penggantian Debug Mode → Dev Mode & Penguncian Operasional Read-Only (`storage.js`, `options.*`, `popup.*`, `styles.css`)**: Mengganti seluruh label dan badge `DEBUG` menjadi `DEV` (`devMode`), menyembunyikan panel **Sinkronisasi Firestore** saat Dev Mode OFF, serta mengunci daftar status equipment, swap `↕`, dan dropdown/pill kata kunci menjadi read-only agar operator menggunakan status terpusat dari Running Status Checker.
+- **Penanganan Ketat Status `IGNORE` (`content.js`)**: Memastikan 100% baris berstatus `IGNORE` dilewati selama eksekusi maupun pemindaian sisa `Unset`, serta menampilkan jumlah unit & baris `IGNORE` yang dilewati pada Konfirmasi Pra-Eksekusi (Tahap 1) dan Ringkasan Selesai (Tahap 3).
+- **Pembaruan Ikon Brand Checkmark Emerald + Sparkles (`icons/icon.svg`, `icon16/48/128.png`, `content.js`)**: Mengganti seluruh ikon bola lampu lama dengan ikon vektor centang Emerald (`#10B981`) dan dua kilau emas (`#FBBF24`), termasuk regenerasi aset PNG transparan (`16/48/128px`) dan SVG inline pada modal Shadow DOM.
+- **Penyederhanaan Teks Guard & Pembaruan Versi (`popup.html`, `options.html`, `manifest.json`, `README.txt`)**: Mempersingkat teks panduan guard Execute di Popup menjadi `"Buka halaman Operator 1, 2, atau 3 dulu."` dan memperbarui versi ekstensi ke `v2.1.0`.
+
+### Removed
+- **Penghapusan Backend Google Sheets / Apps Script (`backend/Code.gs`)**: Menghapus folder `backend/` beserta seluruh logika Web App URL, Secret Token, dan `host_permissions` `script.google.com` / `script.googleusercontent.com`.
+
 ## [2.0.0] - 2026-11-19
 
 ### Added

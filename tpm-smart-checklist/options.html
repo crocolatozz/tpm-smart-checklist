@@ -14,22 +14,22 @@
         <div class="options-title-meta">
           <div class="options-title-row">
             <h1 class="options-title">TPM Smart Checklist</h1>
-            <span id="options-version" class="badge-version">v2.0.0</span>
-            <span id="options-debug-badge" class="debug-badge is-hidden"></span>
+            <span id="options-version" class="badge-version">v2.1.0</span>
+            <span id="options-dev-badge" class="dev-badge is-hidden"></span>
           </div>
-          <div class="options-subtitle debug-only">Manajemen Equipment Operator 1–3 &amp; Sinkronisasi Database Terpusat</div>
+          <div class="options-subtitle dev-only">Manajemen Equipment Operator 1–3 &amp; Sinkronisasi Cloud Firestore</div>
         </div>
       </div>
 
       <div class="header-actions">
         <label
-          class="debug-toggle-pill"
-          for="debug-mode-toggle"
-          title="Aktifkan Debug Mode untuk menampilkan pengaturan teknis & sinkronisasi Google Sheets"
+          class="dev-toggle-pill"
+          for="dev-mode-toggle"
+          title="Aktifkan Dev Mode untuk mengedit status unit, kata kunci, dan sinkronisasi Firestore"
         >
-          <input id="debug-mode-toggle" type="checkbox" class="debug-toggle-input" />
-          <span class="debug-toggle-track" aria-hidden="true"></span>
-          <span>Debug Mode</span>
+          <input id="dev-mode-toggle" type="checkbox" class="dev-toggle-input" />
+          <span class="dev-toggle-track" aria-hidden="true"></span>
+          <span>Dev Mode</span>
         </label>
         <button
           id="options-theme-btn"
@@ -40,41 +40,21 @@
       </div>
     </header>
 
-    <!-- Task Exclusion Settings (Debug Mode Only) -->
-    <section id="exclusion-rules-section" class="card debug-only">
-      <div class="card-head">
-        <div>
-          <h2 class="card-title">Aturan Pengecualian Tugas (Global Across Operators)</h2>
-          <p class="card-desc">
-            Pilih kata kunci tugas dari template untuk otomatis berstatus Not Executed sesuai kondisi unit.
-          </p>
-        </div>
-      </div>
-
-      <div class="two-col-grid">
-        <div class="field-group">
-          <label for="skip-running-select" class="field-label">Skip Task Keywords when RUNNING</label>
-          <select id="skip-running-select" class="control-select"></select>
-          <div id="skip-running-pills" class="pill-box" aria-label="Daftar kata kunci saat RUNNING"></div>
-        </div>
-
-        <div class="field-group">
-          <label for="skip-standby-select" class="field-label">Skip Task Keywords when STANDBY</label>
-          <select id="skip-standby-select" class="control-select"></select>
-          <div id="skip-standby-pills" class="pill-box" aria-label="Daftar kata kunci saat STANDBY"></div>
-        </div>
-      </div>
-    </section>
-
     <!-- Multi-Operator Equipment Manager -->
     <section class="card">
       <div class="card-head">
         <div>
           <h2 class="card-title">Manajemen Equipment Operator</h2>
-          <p class="card-desc debug-only">
+          <p class="card-desc dev-only">
             Kelola status tag tiap operator (RUNNING, STANDBY, IGNORE) dan tukar cepat pasangan unit atas-bawah.
           </p>
         </div>
+        <button id="open-rsc-btn" type="button" class="btn btn-sm btn-emerald-soft"></button>
+      </div>
+
+      <div id="readonly-helper-banner" class="readonly-banner non-dev-only">
+        <span data-icon="lock" data-size="14"></span>
+        <span>Status unit disinkronkan dari Running Status Checker. Aktifkan Dev Mode untuk edit manual.</span>
       </div>
 
       <div class="op-tabs-bar">
@@ -104,7 +84,7 @@
           />
         </div>
 
-        <div class="equip-actions debug-only">
+        <div class="equip-actions dev-only">
           <button id="scrape-tab-btn" type="button" class="btn btn-sm"></button>
           <button id="bulk-paste-btn" type="button" class="btn btn-sm"></button>
           <button id="reset-default-btn" type="button" class="btn btn-sm btn-danger"></button>
@@ -121,58 +101,83 @@
       <div id="equip-list" class="equip-list"></div>
     </section>
 
-    <!-- Centralized Database Sync (Debug Mode Only) -->
-    <section id="db-sync-section" class="card debug-only">
+    <!-- Task Exclusion Settings (Read-only when Dev Mode OFF, Editable when Dev Mode ON) -->
+    <section id="exclusion-rules-section" class="card">
       <div class="card-head">
         <div>
-          <h2 class="card-title">Centralized Database Sync (Google Sheets)</h2>
+          <h2 class="card-title">Aturan Pengecualian Tugas (Global Across Operators)</h2>
           <p class="card-desc">
-            Sinkronisasi master unit &amp; kata kunci pengecualian secara hibrid via Google Apps Script Web App. Cache lokal tetap aktif saat offline.
+            Kata kunci tugas dari template akan otomatis berstatus Not Executed sesuai kondisi unit.
+          </p>
+        </div>
+      </div>
+
+      <div class="two-col-grid">
+        <div class="field-group">
+          <label for="skip-running-select" class="field-label">Skip Task Keywords when RUNNING</label>
+          <select id="skip-running-select" class="control-select"></select>
+          <div id="skip-running-pills" class="pill-box" aria-label="Daftar kata kunci saat RUNNING"></div>
+        </div>
+
+        <div class="field-group">
+          <label for="skip-standby-select" class="field-label">Skip Task Keywords when STANDBY</label>
+          <select id="skip-standby-select" class="control-select"></select>
+          <div id="skip-standby-pills" class="pill-box" aria-label="Daftar kata kunci saat STANDBY"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cloud Firestore Sync (Dev Mode Only) -->
+    <section id="firestore-sync-section" class="card dev-only">
+      <div class="card-head">
+        <div>
+          <h2 class="card-title">Sinkronisasi Firestore (urea1b-running-status)</h2>
+          <p class="card-desc">
+            Sinkronisasi status unit (<code>equipments</code>) dan kata kunci pengecualian (<code>config/tpm_settings</code>) dengan Cloud Firestore REST API.
           </p>
         </div>
       </div>
 
       <div class="sync-status-bar">
         <div class="sync-status-left">
-          <span id="db-status-badge" class="sync-badge is-offline">Offline Cache</span>
-          <span id="db-last-sync-text" class="sync-time">Belum pernah sinkronisasi</span>
+          <span id="fs-status-badge" class="sync-badge is-offline">Cache Lokal</span>
+          <span id="fs-last-sync-text" class="sync-time">Belum pernah sinkronisasi</span>
         </div>
-        <label class="checkbox-row" for="db-auto-pull-toggle" style="margin-top:0;">
-          <input id="db-auto-pull-toggle" type="checkbox" />
-          <span>Auto-Pull saat dibuka</span>
+        <label class="checkbox-row" for="fs-auto-pull-toggle" style="margin-top:0;">
+          <input id="fs-auto-pull-toggle" type="checkbox" checked />
+          <span>Auto-Ambil saat Popup Dibuka</span>
         </label>
       </div>
 
-      <div class="two-col-grid">
-        <div class="field-group">
-          <label for="db-url-input" class="field-label">Web App Endpoint URL</label>
-          <input
-            id="db-url-input"
-            type="url"
-            class="control-input"
-            placeholder="https://script.google.com/macros/s/.../exec"
-            spellcheck="false"
-          />
-          <span class="input-hint">Salin URL deployment Web App dari <code>backend/Code.gs</code></span>
-        </div>
-
-        <div class="field-group">
-          <label for="db-token-input" class="field-label">Secret Token</label>
-          <input
-            id="db-token-input"
-            type="password"
-            class="control-input"
-            placeholder="Masukkan SECRET_TOKEN"
-            autocomplete="off"
-          />
-          <span class="input-hint">Harus sama persis dengan konstanta <code>SECRET_TOKEN</code> di Apps Script</span>
-        </div>
+      <div class="field-group">
+        <label for="fs-project-id-input" class="field-label">Firestore Project ID</label>
+        <input
+          id="fs-project-id-input"
+          type="text"
+          class="control-input"
+          placeholder="urea1b-running-status"
+          spellcheck="false"
+        />
+        <span class="input-hint">Default: <code>urea1b-running-status</code> (tanpa API key)</span>
       </div>
 
       <div class="sync-controls-row">
         <div class="equip-actions">
-          <button id="db-pull-btn" type="button" class="btn btn-sm btn-primary"></button>
-          <button id="db-push-btn" type="button" class="btn btn-sm"></button>
+          <button id="fs-pull-btn" type="button" class="btn btn-sm btn-primary"></button>
+          <button id="fs-push-btn" type="button" class="btn btn-sm btn-dry"></button>
+        </div>
+      </div>
+
+      <div id="push-confirm-panel" class="push-confirm-panel is-hidden" role="alertdialog" aria-labelledby="push-confirm-text">
+        <div class="push-confirm-msg">
+          <span data-icon="alert-triangle" data-size="16"></span>
+          <span id="push-confirm-text">
+            Status unit lokal dan kata kunci pengecualian akan menimpa data live di Cloud Firestore. Lanjutkan?
+          </span>
+        </div>
+        <div class="push-confirm-actions">
+          <button id="push-cancel-btn" type="button" class="btn btn-sm">Batal</button>
+          <button id="push-confirm-btn" type="button" class="btn btn-sm btn-dry">Ya, Simpan ke DB</button>
         </div>
       </div>
 
@@ -212,7 +217,7 @@
 
     <footer class="options-footer">
       <span>© 2026 — Developed by FIKRI</span>
-      <span id="options-footer-ver" class="version-pill">v2.0.0</span>
+      <span id="options-footer-ver" class="version-pill">v2.1.0</span>
     </footer>
   </div>
 
