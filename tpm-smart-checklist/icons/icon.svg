@@ -1,17 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="128" height="128" fill="none">
-  <g stroke="#10B981" stroke-width="24" stroke-linecap="round">
-    <line x1="256" y1="14" x2="256" y2="72"/>
-    <line x1="85" y1="85" x2="126" y2="126"/>
-    <line x1="427" y1="85" x2="386" y2="126"/>
-    <line x1="14" y1="256" x2="72" y2="256"/>
-    <line x1="440" y1="256" x2="498" y2="256"/>
-    <line x1="85" y1="427" x2="126" y2="386"/>
-    <line x1="427" y1="427" x2="386" y2="386"/>
-  </g>
-  <rect x="204" y="422" width="104" height="44" rx="12" fill="#D1FAE5"/>
-  <path d="M222 468C228 486 241 498 256 498C271 498 284 486 290 468" fill="#D1FAE5" stroke="#10B981" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M256 112C176.5 112 112 176.5 112 256C112 311.2 143.1 359.2 188.8 383.3C198.2 388.3 204 398.1 204 408.7V452C204 460.8 211.2 468 220 468H292C300.8 468 308 460.8 308 452V408.7C308 398.1 313.8 388.3 323.2 383.3C368.9 359.2 400 311.2 400 256C400 176.5 335.5 112 256 112Z" stroke="#10B981" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
-  <line x1="204" y1="422" x2="308" y2="422" stroke="#10B981" stroke-width="24" stroke-linecap="round"/>
-  <circle cx="256" cy="255" r="68" fill="#D1FAE5" stroke="#10B981" stroke-width="24"/>
-  <path d="M230 255L248 273L283 238" stroke="#10B981" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Upper-Right Sparkle (Golden Yellow #FBBF24) -->
+  <path d="M275 55C277.5 85 289 96.5 329 109C289 121.5 277.5 133 275 163C272.5 133 261 121.5 221 109C261 96.5 272.5 85 275 55Z" fill="#FBBF24" stroke="#FBBF24" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Lower-Left Sparkle (Golden Yellow #FBBF24) -->
+  <path d="M172 87C175 123 189 137 237 152.5C189 168 175 182 172 218C169 182 155 168 107 152.5C155 137 169 123 172 87Z" fill="#FBBF24" stroke="#FBBF24" stroke-width="7" stroke-linejoin="round"/>
+  <!-- Bold Rounded Checkmark (Emerald Green #10B981) -->
+  <path d="M84 236C92 228 105 228 113 236L198 321L399 120C407 112 420 112 428 120L472 164C480 172 480 185 472 193L216 449C206 459 190 459 180 449L40 309C32 301 32 288 40 280L84 236Z" fill="#10B981"/>
 </svg>
