@@ -14,10 +14,10 @@
         <div class="options-title-meta">
           <div class="options-title-row">
             <h1 class="options-title">TPM Smart Checklist</h1>
-            <span id="options-version" class="badge-version">v2.1.0</span>
+            <span id="options-version" class="badge-version">v2.2.1</span>
             <span id="options-dev-badge" class="dev-badge is-hidden"></span>
           </div>
-          <div class="options-subtitle dev-only">Manajemen Equipment Operator 1–3 &amp; Sinkronisasi Cloud Firestore</div>
+          <div class="options-subtitle">Manajemen Equipment Operator 1–3 &amp; Aturan Pengecualian</div>
         </div>
       </div>
 
@@ -25,7 +25,7 @@
         <label
           class="dev-toggle-pill"
           for="dev-mode-toggle"
-          title="Aktifkan Dev Mode untuk mengedit status unit, kata kunci, dan sinkronisasi Firestore"
+          title="Aktifkan Dev Mode untuk mengedit status unit dan kata kunci pengecualian"
         >
           <input id="dev-mode-toggle" type="checkbox" class="dev-toggle-input" />
           <span class="dev-toggle-track" aria-hidden="true"></span>
@@ -45,8 +45,8 @@
       <div class="card-head">
         <div>
           <h2 class="card-title">Manajemen Equipment Operator</h2>
-          <p class="card-desc dev-only">
-            Kelola status tag tiap operator (RUNNING, STANDBY, IGNORE) dan tukar cepat pasangan unit atas-bawah.
+          <p class="card-desc">
+            Status equipment tiap operator dan tukar cepat status unit A ⇄ B.
           </p>
         </div>
         <button id="open-rsc-btn" type="button" class="btn btn-sm btn-emerald-soft"></button>
@@ -60,13 +60,13 @@
       <div class="op-tabs-bar">
         <div class="op-tabs" role="tablist" aria-label="Pilih Tab Operator">
           <button type="button" role="tab" class="op-tab-btn is-active" data-op-tab="op1">
-            Operator 1 (<span id="op1-total">30</span>)
+            OPERATOR 1 (<span id="op1-total">30</span>)
           </button>
           <button type="button" role="tab" class="op-tab-btn" data-op-tab="op2">
-            Operator 2 (<span id="op2-total">9</span>)
+            OPERATOR 2 (<span id="op2-total">9</span>)
           </button>
           <button type="button" role="tab" class="op-tab-btn" data-op-tab="op3">
-            Operator 3 (<span id="op3-total">17</span>)
+            OPERATOR 3 (<span id="op3-total">17</span>)
           </button>
         </div>
       </div>
@@ -83,25 +83,19 @@
             spellcheck="false"
           />
         </div>
-
-        <div class="equip-actions dev-only">
-          <button id="scrape-tab-btn" type="button" class="btn btn-sm"></button>
-          <button id="bulk-paste-btn" type="button" class="btn btn-sm"></button>
-          <button id="reset-default-btn" type="button" class="btn btn-sm btn-danger"></button>
-        </div>
       </div>
 
       <div class="filter-pills" role="tablist" aria-label="Filter Status Equipment">
-        <button type="button" class="pill-btn is-active" data-filter="ALL">Semua (<span id="count-all">0</span>)</button>
-        <button type="button" class="pill-btn" data-filter="RUNNING">Running (<span id="count-running">0</span>)</button>
-        <button type="button" class="pill-btn" data-filter="STANDBY">Standby (<span id="count-standby">0</span>)</button>
-        <button type="button" class="pill-btn" data-filter="IGNORE">Ignore (<span id="count-ignore">0</span>)</button>
+        <button type="button" class="pill-btn is-active" data-filter="ALL">ALL (<span id="count-all">0</span>)</button>
+        <button type="button" class="pill-btn" data-filter="RUNNING">RUNNING (<span id="count-running">0</span>)</button>
+        <button type="button" class="pill-btn" data-filter="STANDBY">STANDBY (<span id="count-standby">0</span>)</button>
+        <button type="button" class="pill-btn" data-filter="IGNORE">IGNORE (<span id="count-ignore">0</span>)</button>
       </div>
 
       <div id="equip-list" class="equip-list"></div>
     </section>
 
-    <!-- Task Exclusion Settings (Read-only when Dev Mode OFF, Editable when Dev Mode ON) -->
+    <!-- Task Exclusion Settings -->
     <section id="exclusion-rules-section" class="card">
       <div class="card-head">
         <div>
@@ -127,132 +121,13 @@
       </div>
     </section>
 
-    <!-- Cloud Firestore Sync (Dev Mode Only) -->
-    <section id="firestore-sync-section" class="card dev-only">
-      <div class="card-head">
-        <div>
-          <h2 class="card-title">Sinkronisasi Firestore (urea1b-running-status)</h2>
-          <p class="card-desc">
-            Sinkronisasi status unit (<code>equipments</code>) dan kata kunci pengecualian (<code>config/tpm_settings</code>) dengan Cloud Firestore REST API.
-          </p>
-        </div>
-      </div>
-
-      <div class="sync-status-bar">
-        <div class="sync-status-left">
-          <span id="fs-status-badge" class="sync-badge is-offline">Cache Lokal</span>
-          <span id="fs-last-sync-text" class="sync-time">Belum pernah sinkronisasi</span>
-        </div>
-        <label class="checkbox-row" for="fs-auto-pull-toggle" style="margin-top:0;">
-          <input id="fs-auto-pull-toggle" type="checkbox" checked />
-          <span>Auto-Ambil saat Popup Dibuka</span>
-        </label>
-      </div>
-
-      <div class="field-group">
-        <label for="fs-project-id-input" class="field-label">Firestore Project ID</label>
-        <input
-          id="fs-project-id-input"
-          type="text"
-          class="control-input"
-          placeholder="urea1b-running-status"
-          spellcheck="false"
-        />
-        <span class="input-hint">Default: <code>urea1b-running-status</code> (tanpa API key)</span>
-      </div>
-
-      <div class="sync-controls-row">
-        <div class="equip-actions">
-          <button id="fs-pull-btn" type="button" class="btn btn-sm btn-primary"></button>
-          <button id="fs-push-btn" type="button" class="btn btn-sm btn-dry"></button>
-        </div>
-      </div>
-
-      <div id="push-confirm-panel" class="push-confirm-panel is-hidden" role="alertdialog" aria-labelledby="push-confirm-text">
-        <div class="push-confirm-msg">
-          <span data-icon="alert-triangle" data-size="16"></span>
-          <span id="push-confirm-text">
-            Status unit lokal dan kata kunci pengecualian akan menimpa data live di Cloud Firestore. Lanjutkan?
-          </span>
-        </div>
-        <div class="push-confirm-actions">
-          <button id="push-cancel-btn" type="button" class="btn btn-sm">Batal</button>
-          <button id="push-confirm-btn" type="button" class="btn btn-sm btn-dry">Ya, Simpan ke DB</button>
-        </div>
-      </div>
-
-      <div class="two-col-grid">
-        <div class="field-group">
-          <label for="url-pattern-input" class="field-label">Target URL Wildcard Pattern</label>
-          <input
-            id="url-pattern-input"
-            type="text"
-            class="control-input"
-            placeholder="*"
-          />
-          <span class="input-hint">Default: * (mendukung wildcard * dan ?)</span>
-        </div>
-
-        <div class="field-group">
-          <label for="click-delay-input" class="field-label">Click Delay (ms)</label>
-          <input
-            id="click-delay-input"
-            type="number"
-            min="0"
-            max="5000"
-            step="10"
-            class="control-input"
-          />
-          <span class="input-hint">Jeda antar klik checkbox untuk stabilitas Vue.js (default: 150ms)</span>
-        </div>
-      </div>
-
-      <div class="card-head" style="margin-top:4px;">
-        <h3 class="card-title" style="font-size:13.5px;">Execution History (20 Terakhir)</h3>
-        <button id="clear-history-btn" type="button" class="btn btn-sm"></button>
-      </div>
-
-      <div id="history-list" class="history-list"></div>
-    </section>
-
     <footer class="options-footer">
       <span>© 2026 — Developed by FIKRI</span>
-      <span id="options-footer-ver" class="version-pill">v2.1.0</span>
+      <span id="options-footer-ver" class="version-pill">v2.2.1</span>
     </footer>
   </div>
 
-  <!-- Bulk Paste Tag Modal -->
-  <div id="bulk-modal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="bulk-modal-title">
-    <div class="modal-panel">
-      <div class="modal-header">
-        <h3 id="bulk-modal-title" class="modal-title">Bulk Paste Equipment Tag</h3>
-        <button id="bulk-close-btn" type="button" class="icon-btn" aria-label="Tutup"></button>
-      </div>
-      <p id="bulk-modal-desc" class="card-desc">
-        Tempel daftar tag (satu tag per baris) untuk ditambahkan ke operator aktif.
-      </p>
-      <div class="field-group">
-        <label for="bulk-default-state" class="field-label">Status Awal Tag Baru</label>
-        <select id="bulk-default-state" class="control-select">
-          <option value="RUNNING">RUNNING</option>
-          <option value="STANDBY">STANDBY</option>
-          <option value="IGNORE">IGNORE</option>
-        </select>
-      </div>
-      <textarea
-        id="bulk-textarea"
-        class="bulk-textarea"
-        placeholder="B-02-U-GA201A&#10;B-02-U-GA201B"
-        spellcheck="false"
-      ></textarea>
-      <div class="modal-footer">
-        <button id="bulk-cancel-btn" type="button" class="btn btn-sm">Batal</button>
-        <button id="bulk-apply-btn" type="button" class="btn btn-sm btn-primary">Tambahkan Tag</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- PMR Web Runner Floating Toast Container -->
+  <!-- Floating Toast Container -->
   <div id="toast-container" class="pmr-toast-container" aria-live="polite" aria-atomic="true"></div>
 
   <script type="module" src="./options.js"></script>

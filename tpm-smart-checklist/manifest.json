@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TPM Smart Checklist",
-  "version": "2.1.0",
+  "version": "2.2.1",
   "description": "TPM Smart Checklist untuk Operator 1–3 pada web TPM dengan sinkronisasi Cloud Firestore, deteksi halaman & tanggal otomatis, Dev Mode, dan engine toggle 3-state.",
   "icons": {
     "16": "icons/icon16.png",

@@ -9,14 +9,19 @@ export const OPERATOR_PRESETS = EQUIPMENT_DB;
 export const KEYWORD_TEMPLATES = TASK_KEYWORD_TEMPLATES;
 export const VALID_OPERATOR_IDS = ['op1', 'op2', 'op3'];
 
+export const LOCKED_CONFIG = Object.freeze({
+  projectId: 'urea1b-running-status',
+  autoPullOnOpen: true,
+  targetUrlPattern: '*',
+  clickDelayMs: 150,
+  autoDetectShift: true,
+  autoShowAllRows: true
+});
+
 const VALID_FILTERS = new Set([
-  'all',
   'morning_shift',
   'afternoon_shift',
-  'night_shift',
-  'every_shift',
-  'weekly',
-  'optional'
+  'night_shift'
 ]);
 
 const VALID_STATES = new Set(['RUNNING', 'STANDBY', 'IGNORE']);
@@ -67,26 +72,37 @@ export function createDefaultSettings() {
     activeOperator: 'op1',
     theme: 'light',
     devMode: false,
-    lastFilter: 'all',
-    autoDetectShift: true,
-    includeEveryShift: true,
-    autoShowAllRows: true,
+    lastFilter: detectActiveShiftByHour(),
+    autoDetectShift: LOCKED_CONFIG.autoDetectShift,
+    autoShowAllRows: LOCKED_CONFIG.autoShowAllRows,
     skipRunningKeywords: ['Putar poros'],
     skipStandbyKeywords: ['Kelainan suara'],
-    targetUrlPattern: '*',
-    clickDelayMs: 150,
-    firestoreProjectId: DEFAULT_FIRESTORE_PROJECT_ID,
-    autoPullOnOpen: true,
+    targetUrlPattern: LOCKED_CONFIG.targetUrlPattern,
+    clickDelayMs: LOCKED_CONFIG.clickDelayMs,
+    projectId: LOCKED_CONFIG.projectId,
+    firestoreProjectId: LOCKED_CONFIG.projectId,
+    autoPullOnOpen: LOCKED_CONFIG.autoPullOnOpen,
     lastSyncAt: '',
     syncStatus: 'offline',
     syncMessage: '',
-    operators: buildAllDefaultOperators(),
-    executionHistory: []
+    operators: buildAllDefaultOperators()
   };
 }
 
 function hasChromeStorage() {
   return typeof chrome !== 'undefined' && Boolean(chrome && chrome.storage && chrome.storage.local);
+}
+
+function hasLegacyKeys(raw) {
+  if (!raw || typeof raw !== 'object') return false;
+  return (
+    Object.prototype.hasOwnProperty.call(raw, 'executionHistory') ||
+    Object.prototype.hasOwnProperty.call(raw, 'includeEveryShift') ||
+    Object.prototype.hasOwnProperty.call(raw, 'debugMode') ||
+    Object.prototype.hasOwnProperty.call(raw, 'dbAutoPull') ||
+    Object.prototype.hasOwnProperty.call(raw, 'dbLastSyncAt') ||
+    Object.prototype.hasOwnProperty.call(raw, 'dbSyncStatus')
+  );
 }
 
 function normalizeOperatorMap(sourceMap, fallbackOpId) {
@@ -122,27 +138,12 @@ export function normalizeState(raw) {
     op3: normalizeOperatorMap(rawOps && rawOps.op3, 'op3')
   };
 
-  const delayNum = Number(src.clickDelayMs);
-  const historyArr = Array.isArray(src.executionHistory) ? src.executionHistory.slice(0, 20) : [];
-
   const resolvedDevMode =
     typeof src.devMode === 'boolean'
       ? src.devMode
       : typeof src.debugMode === 'boolean'
         ? src.debugMode
         : false;
-
-  const resolvedProjectId =
-    typeof src.firestoreProjectId === 'string' && src.firestoreProjectId.trim()
-      ? src.firestoreProjectId.trim()
-      : defaults.firestoreProjectId;
-
-  const resolvedAutoPull =
-    typeof src.autoPullOnOpen === 'boolean'
-      ? src.autoPullOnOpen
-      : typeof src.dbAutoPull === 'boolean'
-        ? src.dbAutoPull
-        : defaults.autoPullOnOpen;
 
   const resolvedLastSyncAt =
     typeof src.lastSyncAt === 'string'
@@ -159,24 +160,19 @@ export function normalizeState(raw) {
     theme: src.theme === 'dark' ? 'dark' : 'light',
     devMode: resolvedDevMode,
     lastFilter: VALID_FILTERS.has(src.lastFilter) ? src.lastFilter : defaults.lastFilter,
-    autoDetectShift: typeof src.autoDetectShift === 'boolean' ? src.autoDetectShift : defaults.autoDetectShift,
-    includeEveryShift: typeof src.includeEveryShift === 'boolean' ? src.includeEveryShift : defaults.includeEveryShift,
-    autoShowAllRows: typeof src.autoShowAllRows === 'boolean' ? src.autoShowAllRows : defaults.autoShowAllRows,
+    autoDetectShift: LOCKED_CONFIG.autoDetectShift,
+    autoShowAllRows: LOCKED_CONFIG.autoShowAllRows,
     skipRunningKeywords: normalizeKeywordArray(src.skipRunningKeywords, defaults.skipRunningKeywords),
     skipStandbyKeywords: normalizeKeywordArray(src.skipStandbyKeywords, defaults.skipStandbyKeywords),
-    targetUrlPattern: typeof src.targetUrlPattern === 'string' && src.targetUrlPattern.trim()
-      ? src.targetUrlPattern.trim()
-      : defaults.targetUrlPattern,
-    clickDelayMs: Number.isFinite(delayNum) && delayNum >= 0
-      ? Math.min(5000, Math.round(delayNum))
-      : defaults.clickDelayMs,
-    firestoreProjectId: resolvedProjectId,
-    autoPullOnOpen: resolvedAutoPull,
+    targetUrlPattern: LOCKED_CONFIG.targetUrlPattern,
+    clickDelayMs: LOCKED_CONFIG.clickDelayMs,
+    projectId: LOCKED_CONFIG.projectId,
+    firestoreProjectId: LOCKED_CONFIG.projectId,
+    autoPullOnOpen: LOCKED_CONFIG.autoPullOnOpen,
     lastSyncAt: resolvedLastSyncAt,
     syncStatus: resolvedSyncStatus,
     syncMessage: typeof src.syncMessage === 'string' ? src.syncMessage.trim() : '',
-    operators: operators,
-    executionHistory: historyArr
+    operators: operators
   };
 }
 
@@ -184,7 +180,12 @@ function readLocalFallback() {
   try {
     const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!raw) return createDefaultSettings();
-    return normalizeState(JSON.parse(raw));
+    const parsed = JSON.parse(raw);
+    const normalized = normalizeState(parsed);
+    if (hasLegacyKeys(parsed)) {
+      writeLocalFallback(normalized);
+    }
+    return normalized;
   } catch (err) {
     return createDefaultSettings();
   }
@@ -211,7 +212,14 @@ export function getSettings() {
             });
             return;
           }
-          resolve(normalizeState(existing));
+          const normalized = normalizeState(existing);
+          if (hasLegacyKeys(existing)) {
+            chrome.storage.local.set({ [STORAGE_KEY]: normalized }, function () {
+              resolve(normalized);
+            });
+            return;
+          }
+          resolve(normalized);
         });
         return;
       } catch (err) {
@@ -238,10 +246,7 @@ export async function saveSettings(partial) {
   const merged = normalizeState({
     ...current,
     ...(partial || {}),
-    operators: nextOps,
-    executionHistory: partial && partial.executionHistory
-      ? partial.executionHistory
-      : current.executionHistory
+    operators: nextOps
   });
 
   return new Promise((resolve) => {
@@ -269,32 +274,6 @@ export async function saveOperatorMap(opId, nextMap) {
       [validId]: nextMap
     }
   });
-}
-
-export async function resetOperatorDefaults(opId) {
-  const validId = VALID_OPERATOR_IDS.includes(opId) ? opId : 'op1';
-  return saveOperatorMap(validId, buildDefaultEquipmentMap(validId));
-}
-
-export async function appendHistory(entry) {
-  const current = await getSettings();
-  const nextHistory = [entry, ...current.executionHistory].slice(0, 20);
-  return saveSettings({ executionHistory: nextHistory });
-}
-
-export async function clearHistory() {
-  return saveSettings({ executionHistory: [] });
-}
-
-function validateProjectId(rawProjectId) {
-  const clean = String(rawProjectId || '').trim();
-  if (!clean) {
-    throw new Error('Firestore Project ID belum diisi.');
-  }
-  if (!/^[a-zA-Z0-9_-]+$/.test(clean)) {
-    throw new Error('Format Firestore Project ID tidak valid.');
-  }
-  return clean;
 }
 
 function extractFirestoreStringArray(field) {
@@ -358,9 +337,7 @@ async function fetchTpmConfigDoc(projectId, signal) {
 export async function pullFromFirestore(options) {
   const opts = options || {};
   const current = await getSettings();
-  const projectId = validateProjectId(
-    opts.projectId !== undefined ? opts.projectId : current.firestoreProjectId
-  );
+  const projectId = LOCKED_CONFIG.projectId;
 
   let equipDocs;
   let configDoc;
@@ -372,7 +349,6 @@ export async function pullFromFirestore(options) {
   } catch (err) {
     if (!opts.silent) {
       await saveSettings({
-        firestoreProjectId: projectId,
         syncStatus: 'error',
         syncMessage: err && err.message ? err.message : 'Gagal terhubung ke Firestore.'
       });
@@ -396,7 +372,6 @@ export async function pullFromFirestore(options) {
     remoteStatusByTag.set(tag, status);
   }
 
-  // Empty-data guard: never overwrite local operator maps if Firestore returned 0 valid documents
   let mergedOperators = current.operators;
   let equipmentUpdated = false;
   if (remoteStatusByTag.size > 0) {
@@ -417,16 +392,29 @@ export async function pullFromFirestore(options) {
   }
 
   const configFields = configDoc && configDoc.fields ? configDoc.fields : null;
-  const nextSkipRunning = configFields && configFields.skipRunningKeywords !== undefined
-    ? extractFirestoreStringArray(configFields.skipRunningKeywords)
-    : current.skipRunningKeywords;
-  const nextSkipStandby = configFields && configFields.skipStandbyKeywords !== undefined
-    ? extractFirestoreStringArray(configFields.skipStandbyKeywords)
-    : current.skipStandbyKeywords;
+  const nestedSkipFields =
+    configFields &&
+    configFields.skipKeywords &&
+    configFields.skipKeywords.mapValue &&
+    configFields.skipKeywords.mapValue.fields
+      ? configFields.skipKeywords.mapValue.fields
+      : null;
+
+  const nextSkipRunning =
+    configFields && configFields.skipRunningKeywords !== undefined
+      ? extractFirestoreStringArray(configFields.skipRunningKeywords)
+      : nestedSkipFields && nestedSkipFields.running !== undefined
+        ? extractFirestoreStringArray(nestedSkipFields.running)
+        : current.skipRunningKeywords;
+  const nextSkipStandby =
+    configFields && configFields.skipStandbyKeywords !== undefined
+      ? extractFirestoreStringArray(configFields.skipStandbyKeywords)
+      : nestedSkipFields && nestedSkipFields.standby !== undefined
+        ? extractFirestoreStringArray(nestedSkipFields.standby)
+        : current.skipStandbyKeywords;
 
   const syncedAt = new Date().toISOString();
   const nextSettings = await saveSettings({
-    firestoreProjectId: projectId,
     operators: mergedOperators,
     skipRunningKeywords: nextSkipRunning,
     skipStandbyKeywords: nextSkipStandby,
@@ -445,116 +433,81 @@ export async function pullFromFirestore(options) {
   };
 }
 
-export async function pushToFirestore(options) {
-  const opts = options || {};
+export async function pushKeywordsToFirestore(overrideKeywords) {
   const current = await getSettings();
-  const projectId = validateProjectId(
-    opts.projectId !== undefined ? opts.projectId : current.firestoreProjectId
-  );
-
-  const uniqueEntries = new Map();
-  for (const opId of VALID_OPERATOR_IDS) {
-    const opMap = (current.operators && current.operators[opId]) || {};
-    for (const [rawTag, rawStatus] of Object.entries(opMap)) {
-      const tag = String(rawTag || '').trim();
-      const status = String(rawStatus || '').trim().toUpperCase();
-      if (!tag) continue;
-      if (tag.length > 25) {
-        throw new Error('Tag "' + tag + '" melebihi batas 25 karakter aturan Firestore.');
-      }
-      if (!VALID_STATES.has(status)) {
-        throw new Error('Status "' + status + '" tidak valid untuk tag "' + tag + '".');
-      }
-      uniqueEntries.set(tag, status);
-    }
-  }
-
+  const projectId = LOCKED_CONFIG.projectId;
   const nowIso = new Date().toISOString();
-  const tasks = Array.from(uniqueEntries.entries());
-  const BATCH_SIZE = 8;
 
-  try {
-    for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
-      const chunk = tasks.slice(i, i + BATCH_SIZE);
-      await Promise.all(
-        chunk.map(async function ([tag, status]) {
-          const docUrl =
-            'https://firestore.googleapis.com/v1/projects/' +
-            encodeURIComponent(projectId) +
-            '/databases/(default)/documents/equipments/' +
-            encodeURIComponent(tag) +
-            '?updateMask.fieldPaths=tag&updateMask.fieldPaths=status&updateMask.fieldPaths=updatedAt';
+  const skipRun = Array.isArray(overrideKeywords && overrideKeywords.skipRunningKeywords)
+    ? overrideKeywords.skipRunningKeywords
+    : Array.isArray(current.skipRunningKeywords)
+      ? current.skipRunningKeywords
+      : [];
+  const skipStby = Array.isArray(overrideKeywords && overrideKeywords.skipStandbyKeywords)
+    ? overrideKeywords.skipStandbyKeywords
+    : Array.isArray(current.skipStandbyKeywords)
+      ? current.skipStandbyKeywords
+      : [];
 
-          const res = await fetch(docUrl, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fields: {
-                tag: { stringValue: tag },
-                status: { stringValue: status },
-                updatedAt: { timestampValue: nowIso }
+  const configUrl =
+    'https://firestore.googleapis.com/v1/projects/' +
+    encodeURIComponent(projectId) +
+    '/databases/(default)/documents/config/tpm_settings' +
+    '?updateMask.fieldPaths=skipKeywords&updateMask.fieldPaths=skipRunningKeywords&updateMask.fieldPaths=skipStandbyKeywords&updateMask.fieldPaths=updatedAt';
+
+  const cfgRes = await fetch(configUrl, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fields: {
+        skipKeywords: {
+          mapValue: {
+            fields: {
+              running: {
+                arrayValue: {
+                  values: skipRun.map((s) => ({ stringValue: s }))
+                }
+              },
+              standby: {
+                arrayValue: {
+                  values: skipStby.map((s) => ({ stringValue: s }))
+                }
               }
-            })
-          });
-
-          if (!res.ok) {
-            throw new Error('Gagal menulis tag ' + tag + ' (HTTP ' + res.status + ')');
+            }
           }
-        })
-      );
-    }
+        },
+        skipRunningKeywords: {
+          arrayValue: {
+            values: skipRun.map((s) => ({ stringValue: s }))
+          }
+        },
+        skipStandbyKeywords: {
+          arrayValue: {
+            values: skipStby.map((s) => ({ stringValue: s }))
+          }
+        },
+        updatedAt: { timestampValue: nowIso }
+      }
+    })
+  });
 
-    const configUrl =
-      'https://firestore.googleapis.com/v1/projects/' +
-      encodeURIComponent(projectId) +
-      '/databases/(default)/documents/config/tpm_settings' +
-      '?updateMask.fieldPaths=skipRunningKeywords&updateMask.fieldPaths=skipStandbyKeywords&updateMask.fieldPaths=updatedAt';
-
-    const skipRun = Array.isArray(current.skipRunningKeywords) ? current.skipRunningKeywords : [];
-    const skipStby = Array.isArray(current.skipStandbyKeywords) ? current.skipStandbyKeywords : [];
-
-    const cfgRes = await fetch(configUrl, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fields: {
-          skipRunningKeywords: {
-            arrayValue: {
-              values: skipRun.map((s) => ({ stringValue: s }))
-            }
-          },
-          skipStandbyKeywords: {
-            arrayValue: {
-              values: skipStby.map((s) => ({ stringValue: s }))
-            }
-          },
-          updatedAt: { timestampValue: nowIso }
-        }
-      })
-    });
-
-    if (!cfgRes.ok) {
-      throw new Error('Gagal menulis config/tpm_settings (HTTP ' + cfgRes.status + ')');
-    }
-  } catch (err) {
+  if (!cfgRes.ok) {
     await saveSettings({
-      firestoreProjectId: projectId,
       syncStatus: 'error',
-      syncMessage: err && err.message ? err.message : 'Push ke Firestore gagal.'
+      syncMessage: 'Gagal menyimpan kata kunci ke Firestore (HTTP ' + cfgRes.status + ')'
     });
-    throw err;
+    throw new Error('Gagal menyimpan kata kunci ke Firestore (HTTP ' + cfgRes.status + ')');
   }
 
   const nextSettings = await saveSettings({
-    firestoreProjectId: projectId,
     lastSyncAt: nowIso,
     syncStatus: 'synced',
-    syncMessage: 'Push berhasil (' + tasks.length + ' unit)'
+    syncMessage: 'Kata kunci pengecualian tersimpan ke Firestore'
   });
 
   return {
-    settings: nextSettings,
-    pushedUnitCount: tasks.length
+    ok: true,
+    settings: nextSettings
   };
 }
 
@@ -633,6 +586,7 @@ export const TPMStorage = {
   STORAGE_KEY,
   DEFAULT_FIRESTORE_PROJECT_ID,
   RUNNING_STATUS_CHECKER_URL,
+  LOCKED_CONFIG,
   EQUIPMENT_DB,
   OPERATOR_PRESETS,
   KEYWORD_TEMPLATES,
@@ -644,11 +598,8 @@ export const TPMStorage = {
   getSettings,
   saveSettings,
   saveOperatorMap,
-  resetOperatorDefaults,
-  appendHistory,
-  clearHistory,
   pullFromFirestore,
-  pushToFirestore,
+  pushKeywordsToFirestore,
   onChanged,
   countEquipmentStates,
   matchesUrlPattern,

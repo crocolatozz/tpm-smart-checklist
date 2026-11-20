@@ -14,27 +14,12 @@ const elSkipRunningPills = document.getElementById('skip-running-pills');
 const elSkipStandbySelect = document.getElementById('skip-standby-select');
 const elSkipStandbyPills = document.getElementById('skip-standby-pills');
 
-const elFsStatusBadge = document.getElementById('fs-status-badge');
-const elFsLastSyncText = document.getElementById('fs-last-sync-text');
-const elFsAutoPullToggle = document.getElementById('fs-auto-pull-toggle');
-const elFsProjectIdInput = document.getElementById('fs-project-id-input');
-const elFsPullBtn = document.getElementById('fs-pull-btn');
-const elFsPushBtn = document.getElementById('fs-push-btn');
-const elPushConfirmPanel = document.getElementById('push-confirm-panel');
-const elPushCancelBtn = document.getElementById('push-cancel-btn');
-const elPushConfirmBtn = document.getElementById('push-confirm-btn');
-const elUrlPattern = document.getElementById('url-pattern-input');
-const elClickDelay = document.getElementById('click-delay-input');
-
 const elOpTabs = Array.from(document.querySelectorAll('.op-tab-btn[data-op-tab]'));
 const elOp1Total = document.getElementById('op1-total');
 const elOp2Total = document.getElementById('op2-total');
 const elOp3Total = document.getElementById('op3-total');
 
 const elSearchInput = document.getElementById('equip-search-input');
-const elScrapeBtn = document.getElementById('scrape-tab-btn');
-const elBulkPasteBtn = document.getElementById('bulk-paste-btn');
-const elResetDefaultBtn = document.getElementById('reset-default-btn');
 const elEquipList = document.getElementById('equip-list');
 const elFilterPills = Array.from(document.querySelectorAll('.pill-btn[data-filter]'));
 
@@ -42,24 +27,12 @@ const elCountAll = document.getElementById('count-all');
 const elCountRunning = document.getElementById('count-running');
 const elCountStandby = document.getElementById('count-standby');
 const elCountIgnore = document.getElementById('count-ignore');
-
-const elClearHistoryBtn = document.getElementById('clear-history-btn');
-const elHistoryList = document.getElementById('history-list');
-
-const elBulkModal = document.getElementById('bulk-modal');
-const elBulkModalDesc = document.getElementById('bulk-modal-desc');
-const elBulkCloseBtn = document.getElementById('bulk-close-btn');
-const elBulkCancelBtn = document.getElementById('bulk-cancel-btn');
-const elBulkApplyBtn = document.getElementById('bulk-apply-btn');
-const elBulkTextarea = document.getElementById('bulk-textarea');
-const elBulkDefaultState = document.getElementById('bulk-default-state');
 const elToastContainer = document.getElementById('toast-container');
 
 let currentSettings = Storage.createDefaultSettings();
 let selectedOpId = 'op1';
 let lastSyncedActiveOp = 'op1';
 let activeFilter = 'ALL';
-let isSyncBusy = false;
 
 function showToast(message, variant) {
   const tone = ['success', 'info', 'warning', 'error'].includes(variant) ? variant : 'info';
@@ -111,18 +84,11 @@ function renderThemeButton(theme) {
 
 function renderStaticIcons() {
   hydrateIcons(document);
-  elDevBadge.replaceChildren(createSvgIcon('bug', 11), document.createTextNode('DEV'));
+  elDevBadge.replaceChildren(createSvgIcon('code', 11), document.createTextNode('DEV'));
   elOpenRscBtn.replaceChildren(
     createSvgIcon('external-link', 14),
     document.createTextNode('Buka Running Status Checker')
   );
-  elScrapeBtn.replaceChildren(createSvgIcon('scan', 14), document.createTextNode('Ambil Tag dari Tab Aktif'));
-  elBulkPasteBtn.replaceChildren(createSvgIcon('plus', 14), document.createTextNode('Bulk Paste Tag'));
-  elResetDefaultBtn.replaceChildren(createSvgIcon('rotate-ccw', 14), document.createTextNode('Reset Default Operator Ini'));
-  elFsPullBtn.replaceChildren(createSvgIcon('cloud-download', 14), document.createTextNode('Ambil Data (Pull)'));
-  elFsPushBtn.replaceChildren(createSvgIcon('cloud-upload', 14), document.createTextNode('Simpan ke DB (Push)'));
-  elClearHistoryBtn.replaceChildren(createSvgIcon('trash', 13), document.createTextNode('Bersihkan Riwayat'));
-  elBulkCloseBtn.replaceChildren(createSvgIcon('x', 15));
 }
 
 function renderKeywordControl(selectEl, pillBoxEl, selectedKeywords, groupKey, isEditable) {
@@ -193,29 +159,6 @@ function renderKeywordControl(selectEl, pillBoxEl, selectedKeywords, groupKey, i
 
     pillBoxEl.appendChild(pill);
   }
-}
-
-function renderSyncSection(settings) {
-  if (document.activeElement !== elFsProjectIdInput) {
-    elFsProjectIdInput.value = settings.firestoreProjectId || Storage.DEFAULT_FIRESTORE_PROJECT_ID;
-  }
-  elFsAutoPullToggle.checked = Boolean(settings.autoPullOnOpen);
-
-  elFsStatusBadge.classList.remove('is-synced', 'is-offline', 'is-error');
-  if (settings.syncStatus === 'synced') {
-    elFsStatusBadge.classList.add('is-synced');
-    elFsStatusBadge.textContent = 'Terhubung · Synced';
-  } else if (settings.syncStatus === 'error') {
-    elFsStatusBadge.classList.add('is-error');
-    elFsStatusBadge.textContent = 'Gagal Sync (Cache Lokal Aktif)';
-  } else {
-    elFsStatusBadge.classList.add('is-offline');
-    elFsStatusBadge.textContent = 'Cache Lokal';
-  }
-
-  elFsLastSyncText.textContent = settings.lastSyncAt
-    ? 'Sinkron terakhir: ' + formatTimestamp(settings.lastSyncAt)
-    : 'Belum pernah sinkronisasi';
 }
 
 function parsePairInfo(tag) {
@@ -416,92 +359,6 @@ function renderEquipmentList() {
   elEquipList.replaceChildren(fragment);
 }
 
-function formatTimestamp(iso) {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString('id-ID', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-  } catch (err) {
-    return String(iso || '');
-  }
-}
-
-function renderHistory() {
-  const history = currentSettings.executionHistory || [];
-  if (history.length === 0) {
-    elHistoryList.replaceChildren();
-    const empty = document.createElement('div');
-    empty.className = 'empty-state';
-    empty.textContent = 'Belum ada riwayat eksekusi.';
-    elHistoryList.appendChild(empty);
-    return;
-  }
-
-  const fragment = document.createDocumentFragment();
-  for (const item of history) {
-    const row = document.createElement('div');
-    row.className = 'history-row';
-
-    const main = document.createElement('div');
-    main.className = 'history-main';
-
-    const timeEl = document.createElement('span');
-    timeEl.className = 'history-time';
-    timeEl.textContent = formatTimestamp(item.timestamp);
-
-    const modeEl = document.createElement('span');
-    const isDry = item.mode === 'Dry Run';
-    modeEl.className = 'history-mode ' + (isDry ? 'is-dry' : 'is-exec');
-    modeEl.textContent = isDry ? 'DRY RUN' : 'EXECUTE';
-
-    const opEl = document.createElement('span');
-    opEl.className = 'history-op';
-    opEl.textContent = item.operatorLabel || 'Operator 1';
-
-    const filterEl = document.createElement('span');
-    filterEl.textContent = 'Shift: ' + (item.scheduleFilter || 'all');
-
-    main.appendChild(timeEl);
-    main.appendChild(modeEl);
-    main.appendChild(opEl);
-    main.appendChild(filterEl);
-
-    const statsEl = document.createElement('div');
-    statsEl.className = 'history-stats';
-    if (Object.prototype.hasOwnProperty.call(item, 'setToExecuted')) {
-      const remNote = typeof item.remainingUnset === 'number'
-        ? ' · Sisa Unset ' + item.remainingUnset
-        : '';
-      statsEl.textContent =
-        'Scan ' + (item.totalScanned || 0) +
-        ' · Exec ' + (item.setToExecuted || 0) +
-        ' · NotExec ' + (item.setToNotExecuted || 0) +
-        ' · Sudah ' + (item.alreadySet || 0) +
-        ' · Lewat ' + (item.untouchedCount || 0) +
-        remNote;
-    } else {
-      statsEl.textContent =
-        'Scan ' + (item.totalScanned || 0) +
-        ' · Cocok ' + (item.matchedCount || 0) +
-        ' · Baru ' + (item.newlyChecked || 0) +
-        ' · Sudah ' + (item.alreadyChecked || 0) +
-        ' · Lewat ' + (item.skippedByRule || 0);
-    }
-
-    row.appendChild(main);
-    row.appendChild(statsEl);
-    fragment.appendChild(row);
-  }
-
-  elHistoryList.replaceChildren(fragment);
-}
-
 function renderAll(settings) {
   currentSettings = settings;
   const isDev = Boolean(settings.devMode);
@@ -510,148 +367,21 @@ function renderAll(settings) {
   document.body.classList.toggle('is-dev', isDev);
   elDevToggle.checked = isDev;
   elDevBadge.classList.toggle('is-hidden', !isDev);
-  if (!isDev) {
-    elPushConfirmPanel.classList.add('is-hidden');
-  }
   renderThemeButton(settings.theme);
 
   renderKeywordControl(elSkipRunningSelect, elSkipRunningPills, settings.skipRunningKeywords, 'running', isDev);
   renderKeywordControl(elSkipStandbySelect, elSkipStandbyPills, settings.skipStandbyKeywords, 'standby', isDev);
-  renderSyncSection(settings);
-
-  if (document.activeElement !== elUrlPattern) {
-    elUrlPattern.value = settings.targetUrlPattern;
-  }
-  if (document.activeElement !== elClickDelay) {
-    elClickDelay.value = String(settings.clickDelayMs);
-  }
-
   renderEquipmentList();
-  renderHistory();
 }
 
-function scrapeTagsInPage() {
-  const cells = document.querySelectorAll('tr[data-task-id] td:nth-child(1)');
-  const seen = new Set();
-  const tags = [];
-  for (const cell of cells) {
-    const parts = [];
-    for (const node of cell.childNodes) {
-      if (node.nodeType === 3) {
-        const t = node.textContent.trim();
-        if (t) parts.push(t);
-      }
-    }
-    const tag = parts.join(' ').trim();
-    if (tag && !seen.has(tag)) {
-      seen.add(tag);
-      tags.push(tag);
-    }
-  }
-  return tags;
-}
-
-function scrapeActiveTabTags() {
-  return new Promise((resolve, reject) => {
-    if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.scripting) {
-      reject(new Error('API chrome.tabs/scripting tidak tersedia di mode ini.'));
-      return;
-    }
-    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-      if (!tabs || tabs.length === 0) {
-        reject(new Error('Tab aktif tidak ditemukan.'));
-        return;
-      }
-      chrome.scripting.executeScript(
-        {
-          target: { tabId: tabs[0].id },
-          func: scrapeTagsInPage
-        },
-        function (results) {
-          if (chrome.runtime && chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-            return;
-          }
-          const first = Array.isArray(results) && results[0] ? results[0].result : [];
-          resolve(Array.isArray(first) ? first : []);
-        }
-      );
-    });
-  });
-}
-
-function openBulkModal() {
-  if (!currentSettings.devMode) return;
-  const preset = EQUIPMENT_DB[selectedOpId] || EQUIPMENT_DB.op1;
-  elBulkModalDesc.textContent =
-    'Tempel daftar tag (satu tag per baris) untuk ditambahkan ke ' + preset.label + '.';
-  elBulkTextarea.value = '';
-  elBulkModal.classList.remove('is-hidden');
-  elBulkTextarea.focus();
-}
-
-function closeBulkModal() {
-  elBulkModal.classList.add('is-hidden');
-}
-
-function setFirestoreSyncBusy(busy) {
-  isSyncBusy = busy;
-  elFsPullBtn.disabled = busy;
-  elFsPushBtn.disabled = busy;
-  elPushConfirmBtn.disabled = busy;
-  elPushCancelBtn.disabled = busy;
-}
-
-async function handlePullFromFirestore(isSilentAuto) {
-  if (isSyncBusy) return;
-  setFirestoreSyncBusy(true);
+async function silentAutoPullOnOptionsOpen() {
   try {
-    const projectId = elFsProjectIdInput.value.trim() || currentSettings.firestoreProjectId;
-    const res = await Storage.pullFromFirestore({
-      projectId: projectId,
-      silent: Boolean(isSilentAuto)
-    });
-    renderAll(res.settings);
-    if (res.remoteUnitCount === 0) {
-      showToast('Firestore kosong (0 unit), status lokal dipertahankan.', 'warning');
-    } else {
-      showToast(
-        isSilentAuto
-          ? 'Auto-Pull Firestore berhasil (' + res.remoteUnitCount + ' unit).'
-          : 'Data berhasil ditarik dari Firestore (' + res.remoteUnitCount + ' unit).',
-        'success'
-      );
+    const res = await Storage.pullFromFirestore({ silent: true });
+    if (res && res.settings) {
+      renderAll(res.settings);
     }
   } catch (err) {
-    const refreshed = await Storage.getSettings();
-    renderAll(refreshed);
-    showToast(
-      err && err.message ? err.message : 'Gagal menarik data dari Cloud Firestore.',
-      isSilentAuto ? 'warning' : 'error'
-    );
-  } finally {
-    setFirestoreSyncBusy(false);
-  }
-}
-
-async function handlePushToFirestoreConfirmed() {
-  if (isSyncBusy || !currentSettings.devMode) return;
-  setFirestoreSyncBusy(true);
-  try {
-    const projectId = elFsProjectIdInput.value.trim() || currentSettings.firestoreProjectId;
-    const res = await Storage.pushToFirestore({ projectId: projectId });
-    elPushConfirmPanel.classList.add('is-hidden');
-    renderAll(res.settings);
-    showToast('Berhasil menyimpan ' + res.pushedUnitCount + ' unit & kata kunci ke Firestore.', 'success');
-  } catch (err) {
-    const refreshed = await Storage.getSettings();
-    renderAll(refreshed);
-    showToast(
-      err && err.message ? err.message : 'Gagal mengirim data ke Cloud Firestore.',
-      'error'
-    );
-  } finally {
-    setFirestoreSyncBusy(false);
+    // Keep cached data quietly on network failure
   }
 }
 
@@ -668,7 +398,20 @@ async function addKeywordToGroup(groupKey, value) {
   list.push(clean);
   const updated = await Storage.saveSettings({ [field]: list });
   renderAll(updated);
-  showToast('Kata kunci "' + clean + '" ditambahkan.', 'success');
+
+  try {
+    await Storage.pushKeywordsToFirestore({
+      skipRunningKeywords: updated.skipRunningKeywords,
+      skipStandbyKeywords: updated.skipStandbyKeywords
+    });
+    showToast('Kata kunci "' + clean + '" ditambahkan & tersimpan ke Firestore.', 'success');
+  } catch (err) {
+    showToast(
+      'Kata kunci "' + clean + '" disimpan lokal (gagal sync Firestore: ' +
+      (err && err.message ? err.message : 'offline') + ').',
+      'warning'
+    );
+  }
 }
 
 async function removeKeywordFromGroup(groupKey, value) {
@@ -678,7 +421,20 @@ async function removeKeywordFromGroup(groupKey, value) {
   const nextList = list.filter((k) => k.toLowerCase() !== String(value || '').toLowerCase());
   const updated = await Storage.saveSettings({ [field]: nextList });
   renderAll(updated);
-  showToast('Kata kunci "' + value + '" dihapus.', 'info');
+
+  try {
+    await Storage.pushKeywordsToFirestore({
+      skipRunningKeywords: updated.skipRunningKeywords,
+      skipStandbyKeywords: updated.skipStandbyKeywords
+    });
+    showToast('Kata kunci "' + value + '" dihapus & tersimpan ke Firestore.', 'info');
+  } catch (err) {
+    showToast(
+      'Kata kunci "' + value + '" dihapus lokal (gagal sync Firestore: ' +
+      (err && err.message ? err.message : 'offline') + ').',
+      'warning'
+    );
+  }
 }
 
 function openRunningStatusChecker() {
@@ -714,9 +470,7 @@ async function init() {
   selectedOpId = Storage.VALID_OPERATOR_IDS.includes(queryOp) ? queryOp : lastSyncedActiveOp;
   renderAll(initial);
 
-  if (initial.autoPullOnOpen) {
-    handlePullFromFirestore(true);
-  }
+  silentAutoPullOnOptionsOpen();
 
   Storage.onChanged(function (updated) {
     if (updated && updated.activeOperator && updated.activeOperator !== lastSyncedActiveOp) {
@@ -778,52 +532,6 @@ async function init() {
     );
   });
 
-  let fieldSaveTimer = null;
-  function scheduleFieldSave() {
-    if (fieldSaveTimer) clearTimeout(fieldSaveTimer);
-    fieldSaveTimer = setTimeout(async function () {
-      const delayVal = Number(elClickDelay.value);
-      const updated = await Storage.saveSettings({
-        firestoreProjectId: elFsProjectIdInput.value.trim() || Storage.DEFAULT_FIRESTORE_PROJECT_ID,
-        targetUrlPattern: elUrlPattern.value.trim() || '*',
-        clickDelayMs: Number.isFinite(delayVal) && delayVal >= 0 ? delayVal : 150
-      });
-      currentSettings = updated;
-      showToast('Konfigurasi teknis disimpan.', 'info');
-    }, 300);
-  }
-
-  elFsProjectIdInput.addEventListener('input', scheduleFieldSave);
-  elUrlPattern.addEventListener('input', scheduleFieldSave);
-  elClickDelay.addEventListener('input', scheduleFieldSave);
-
-  elFsAutoPullToggle.addEventListener('change', async function () {
-    const updated = await Storage.saveSettings({ autoPullOnOpen: Boolean(elFsAutoPullToggle.checked) });
-    renderAll(updated);
-    showToast(
-      updated.autoPullOnOpen ? 'Auto-Ambil saat Popup Dibuka aktif.' : 'Auto-Ambil saat Popup Dibuka dimatikan.',
-      'info'
-    );
-  });
-
-  elFsPullBtn.addEventListener('click', function () {
-    elPushConfirmPanel.classList.add('is-hidden');
-    handlePullFromFirestore(false);
-  });
-
-  elFsPushBtn.addEventListener('click', function () {
-    if (!currentSettings.devMode || isSyncBusy) return;
-    elPushConfirmPanel.classList.remove('is-hidden');
-  });
-
-  elPushCancelBtn.addEventListener('click', function () {
-    elPushConfirmPanel.classList.add('is-hidden');
-  });
-
-  elPushConfirmBtn.addEventListener('click', function () {
-    handlePushToFirestoreConfirmed();
-  });
-
   elSearchInput.addEventListener('input', renderEquipmentList);
 
   for (const pill of elFilterPills) {
@@ -866,82 +574,6 @@ async function init() {
     const updated = await Storage.saveOperatorMap(selectedOpId, nextMap);
     renderAll(updated);
     showToast(tag + ' → ' + nextState, 'success');
-  });
-
-  elScrapeBtn.addEventListener('click', async function () {
-    if (!currentSettings.devMode) return;
-    try {
-      const foundTags = await scrapeActiveTabTags();
-      if (foundTags.length === 0) {
-        showToast('Tidak ditemukan baris tr[data-task-id] pada tab aktif.', 'warning');
-        return;
-      }
-      const currentMap = (currentSettings.operators && currentSettings.operators[selectedOpId]) || {};
-      const nextMap = { ...currentMap };
-      let addedCount = 0;
-      for (const tag of foundTags) {
-        if (!Object.prototype.hasOwnProperty.call(nextMap, tag)) {
-          nextMap[tag] = 'RUNNING';
-          addedCount++;
-        }
-      }
-      const preset = EQUIPMENT_DB[selectedOpId] || EQUIPMENT_DB.op1;
-      const updated = await Storage.saveOperatorMap(selectedOpId, nextMap);
-      renderAll(updated);
-      showToast(
-        'Ditemukan ' + foundTags.length + ' tag (' + addedCount + ' baru ke ' + preset.label + ').',
-        'success'
-      );
-    } catch (err) {
-      showToast(err && err.message ? err.message : 'Gagal mengambil tag dari tab aktif.', 'error');
-    }
-  });
-
-  elBulkPasteBtn.addEventListener('click', openBulkModal);
-  elBulkCloseBtn.addEventListener('click', closeBulkModal);
-  elBulkCancelBtn.addEventListener('click', closeBulkModal);
-
-  elBulkApplyBtn.addEventListener('click', async function () {
-    if (!currentSettings.devMode) return;
-    const lines = elBulkTextarea.value
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    if (lines.length === 0) {
-      closeBulkModal();
-      return;
-    }
-
-    const defaultState = elBulkDefaultState.value || 'RUNNING';
-    const currentMap = (currentSettings.operators && currentSettings.operators[selectedOpId]) || {};
-    const nextMap = { ...currentMap };
-    let addedCount = 0;
-    for (const tag of lines) {
-      if (!Object.prototype.hasOwnProperty.call(nextMap, tag)) {
-        addedCount++;
-      }
-      nextMap[tag] = defaultState;
-    }
-
-    const updated = await Storage.saveOperatorMap(selectedOpId, nextMap);
-    renderAll(updated);
-    closeBulkModal();
-    showToast(lines.length + ' tag diproses (' + addedCount + ' baru) → ' + defaultState + '.', 'success');
-  });
-
-  elResetDefaultBtn.addEventListener('click', async function () {
-    if (!currentSettings.devMode) return;
-    const preset = EQUIPMENT_DB[selectedOpId] || EQUIPMENT_DB.op1;
-    const updated = await Storage.resetOperatorDefaults(selectedOpId);
-    renderAll(updated);
-    showToast(preset.label + ' direset ke ' + preset.equipments.length + ' unit default.', 'warning');
-  });
-
-  elClearHistoryBtn.addEventListener('click', async function () {
-    const updated = await Storage.clearHistory();
-    renderAll(updated);
-    showToast('Riwayat eksekusi dibersihkan.', 'info');
   });
 }
 

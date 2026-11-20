@@ -11,29 +11,30 @@ const elCtxPageBadge = document.getElementById('ctx-page-badge');
 const elCtxDateVal = document.getElementById('ctx-date-val');
 const elGuardHint = document.getElementById('execute-guard-hint');
 
-const elOpBtns = Array.from(document.querySelectorAll('.op-seg-btn[data-operator]'));
-const elOperatorLabel = document.getElementById('preset-operator-label');
+const elPresetCounts = document.getElementById('preset-counts');
 const elRunningChip = document.getElementById('running-count-chip');
 const elStandbyChip = document.getElementById('standby-count-chip');
+const elIgnoreChip = document.getElementById('ignore-count-chip');
 const elScheduleFilter = document.getElementById('schedule-filter');
-const elAutoDetectShift = document.getElementById('auto-detect-shift');
-const elIncludeEveryShift = document.getElementById('include-every-shift');
-const elAutoShowAllRows = document.getElementById('auto-show-all-rows');
 const elDryRunBtn = document.getElementById('dry-run-btn');
-const elClearDryRunBtn = document.getElementById('clear-dry-run-btn');
 const elExecuteBtn = document.getElementById('execute-btn');
 const elProgressWrap = document.getElementById('exec-progress-wrap');
 const elProgressText = document.getElementById('exec-progress-text');
 const elProgressBar = document.getElementById('exec-progress-bar');
-const elSummaryBox = document.getElementById('summary-box');
-const elSummaryStatus = document.getElementById('summary-status');
+const elPopupFeedback = document.getElementById('popup-feedback');
 
-const elStatScanned = document.getElementById('stat-scanned');
-const elStatExecuted = document.getElementById('stat-executed');
-const elStatNotExecuted = document.getElementById('stat-not-executed');
-const elStatAlready = document.getElementById('stat-already');
-const elStatUntouched = document.getElementById('stat-untouched');
-const elStatRemainingUnset = document.getElementById('stat-remaining-unset');
+const VALID_SHIFT_KEYS = new Set(['morning_shift', 'afternoon_shift', 'night_shift']);
+const SHIFT_LABELS = {
+  morning_shift: 'Morning Shift',
+  afternoon_shift: 'Afternoon Shift',
+  night_shift: 'Night Shift'
+};
+
+function resolveValidShiftFilter(rawVal) {
+  const clean = String(rawVal || '').trim();
+  if (VALID_SHIFT_KEYS.has(clean)) return clean;
+  return Storage.detectActiveShiftByHour();
+}
 
 let currentSettings = Storage.createDefaultSettings();
 let pageContext = {
@@ -45,16 +46,14 @@ let pageContext = {
   activeDateISO: ''
 };
 let isBusy = false;
-let hasManualShiftOverride = false;
 
 function renderButtonIcons(theme) {
   hydrateIcons(document);
   elThemeBtn.replaceChildren(createSvgIcon(theme === 'dark' ? 'sun' : 'moon', 15));
   elOptionsBtn.replaceChildren(createSvgIcon('settings', 15));
-  elDevBadge.replaceChildren(createSvgIcon('bug', 11), document.createTextNode('DEV'));
+  elDevBadge.replaceChildren(createSvgIcon('code', 11), document.createTextNode('DEV'));
 
   elDryRunBtn.replaceChildren(createSvgIcon('eye', 14), document.createTextNode('Dry Run'));
-  elClearDryRunBtn.replaceChildren(createSvgIcon('x', 13), document.createTextNode('Clear'));
   elExecuteBtn.replaceChildren(createSvgIcon('play', 14), document.createTextNode('Execute'));
 }
 
@@ -64,6 +63,25 @@ function updateExecuteAvailability() {
 
   elExecuteBtn.disabled = isBusy || blockedByGuard;
   elGuardHint.classList.toggle('is-hidden', !blockedByGuard);
+}
+
+function renderStatusSummary() {
+  const hasDetectedOp = Boolean(pageContext && pageContext.isValidPage && pageContext.operatorKey);
+  if (!hasDetectedOp) {
+    elPresetCounts.classList.add('is-muted');
+    elRunningChip.textContent = '0 RUNNING';
+    elStandbyChip.textContent = '0 STANDBY';
+    elIgnoreChip.textContent = '0 IGNORE';
+    return;
+  }
+
+  const activeMap =
+    (currentSettings.operators && currentSettings.operators[pageContext.operatorKey]) || {};
+  const counts = Storage.countEquipmentStates(activeMap);
+  elPresetCounts.classList.remove('is-muted');
+  elRunningChip.textContent = counts.running + ' RUNNING';
+  elStandbyChip.textContent = counts.standby + ' STANDBY';
+  elIgnoreChip.textContent = counts.ignore + ' IGNORE';
 }
 
 function renderPageContext() {
@@ -83,7 +101,7 @@ function renderPageContext() {
   } else {
     elCtxPageBadge.replaceChildren(
       createSvgIcon('alert-triangle', 12),
-      document.createTextNode('Di luar halaman Operator 1–3')
+      document.createTextNode('Di luar web TPM Op. 1–3')
     );
   }
 
@@ -93,6 +111,7 @@ function renderPageContext() {
     document.createTextNode(dateText)
   );
 
+  renderStatusSummary();
   updateExecuteAvailability();
 }
 
@@ -105,48 +124,24 @@ function renderSettings(settings, isInitialBoot) {
   elDevBadge.classList.toggle('is-hidden', !isDev);
   renderButtonIcons(settings.theme);
 
-  const opId = settings.activeOperator || 'op1';
-  const preset = Storage.OPERATOR_PRESETS[opId] || Storage.OPERATOR_PRESETS.op1;
-  const activeMap = (settings.operators && settings.operators[opId]) || {};
-
-  for (const btn of elOpBtns) {
-    const isSelected = btn.getAttribute('data-operator') === opId;
-    btn.classList.toggle('is-active', isSelected);
-    btn.setAttribute('aria-selected', String(isSelected));
-  }
-
-  if (elOperatorLabel) {
-    elOperatorLabel.textContent = preset.label;
-  }
-
-  const counts = Storage.countEquipmentStates(activeMap);
-  elRunningChip.textContent = counts.running + ' Running';
-  elStandbyChip.textContent = counts.standby + ' Standby';
-
-  elAutoDetectShift.checked = Boolean(settings.autoDetectShift);
-  elIncludeEveryShift.checked = Boolean(settings.includeEveryShift);
-  elAutoShowAllRows.checked = isDev ? Boolean(settings.autoShowAllRows) : true;
-
   if (isInitialBoot) {
-    if (settings.autoDetectShift) {
-      elScheduleFilter.value = Storage.detectActiveShiftByHour();
-    } else {
-      elScheduleFilter.value = settings.lastFilter || 'all';
-    }
-  } else if (!hasManualShiftOverride && !settings.autoDetectShift) {
-    elScheduleFilter.value = settings.lastFilter || 'all';
+    elScheduleFilter.value = Storage.detectActiveShiftByHour();
+  } else {
+    elScheduleFilter.value = resolveValidShiftFilter(elScheduleFilter.value);
   }
 
+  renderStatusSummary();
   updateExecuteAvailability();
 }
 
-function setStatus(text, tone) {
-  elSummaryStatus.textContent = text;
-  elSummaryStatus.classList.remove('is-error', 'is-success', 'is-dry');
-  elSummaryBox.classList.toggle('has-error', tone === 'error');
-  if (tone === 'error') elSummaryStatus.classList.add('is-error');
-  if (tone === 'success') elSummaryStatus.classList.add('is-success');
-  if (tone === 'dry') elSummaryStatus.classList.add('is-dry');
+function setFeedback(text, tone) {
+  if (!text) {
+    elPopupFeedback.textContent = '';
+    elPopupFeedback.className = 'popup-feedback is-hidden';
+    return;
+  }
+  elPopupFeedback.textContent = text;
+  elPopupFeedback.className = 'popup-feedback' + (tone ? ' is-' + tone : '');
 }
 
 function showProgress(current, total) {
@@ -166,28 +161,10 @@ function hideProgress() {
   elProgressBar.style.width = '0%';
 }
 
-function updateSummaryNumbers(res) {
-  const remaining = Number(res.remainingUnset) || 0;
-  elStatScanned.textContent = String(res.totalScanned || 0);
-  elStatExecuted.textContent = String(res.setToExecuted || 0);
-  elStatNotExecuted.textContent = String(res.setToNotExecuted || 0);
-  elStatAlready.textContent = String(res.alreadySet || 0);
-  elStatUntouched.textContent = String(res.untouchedCount || 0);
-  elStatRemainingUnset.textContent = String(remaining);
-  elStatRemainingUnset.classList.toggle('is-warn', remaining > 0);
-}
-
 function setBusy(busy) {
   isBusy = busy;
   elDryRunBtn.disabled = busy;
-  elClearDryRunBtn.disabled = busy;
   elScheduleFilter.disabled = busy;
-  elAutoDetectShift.disabled = busy;
-  elIncludeEveryShift.disabled = busy;
-  elAutoShowAllRows.disabled = busy;
-  for (const btn of elOpBtns) {
-    btn.disabled = busy;
-  }
   updateExecuteAvailability();
 }
 
@@ -245,8 +222,7 @@ function sendTabMessage(tabId, message) {
   });
 }
 
-async function silentAutoPullOnPopupOpen(settings) {
-  if (!settings || !settings.autoPullOnOpen) return;
+async function silentAutoPullOnPopupOpen() {
   const controller = new AbortController();
   const timeoutId = setTimeout(function () {
     controller.abort();
@@ -254,7 +230,6 @@ async function silentAutoPullOnPopupOpen(settings) {
 
   try {
     const res = await Storage.pullFromFirestore({
-      projectId: settings.firestoreProjectId,
       signal: controller.signal,
       silent: true
     });
@@ -305,37 +280,22 @@ async function detectAndSyncPageContext() {
   renderPageContext();
 }
 
-async function clearPreviewOnActiveTab(options) {
-  const opts = options || {};
+async function clearPreviewOnActiveTab() {
   try {
     const tab = await queryActiveTab();
     if (!tab || !tab.id) return;
-    if (!Storage.matchesUrlPattern(tab.url || '', currentSettings.targetUrlPattern)) {
-      if (opts.updateStatus) {
-        setStatus('URL tab aktif tidak cocok dengan pola target.', 'error');
-      }
+    if (!Storage.matchesUrlPattern(tab.url || '', Storage.LOCKED_CONFIG.targetUrlPattern)) {
       return;
     }
     await injectContentScript(tab.id);
-    const res = await sendTabMessage(tab.id, { action: 'SCR_CLEAR_DRY_RUN' });
-    if (opts.updateStatus) {
-      const count = res && typeof res.clearedCount === 'number' ? res.clearedCount : 0;
-      setStatus(
-        count > 0
-          ? 'Pratinjau Dry Run dibersihkan (' + count + ' baris).'
-          : 'Tidak ada sorotan Dry Run yang aktif.',
-        ''
-      );
-    }
+    await sendTabMessage(tab.id, { action: 'SCR_CLEAR_DRY_RUN' });
   } catch (err) {
-    if (opts.updateStatus) {
-      setStatus(err && err.message ? err.message : 'Gagal membersihkan pratinjau Dry Run.', 'error');
-    }
+    // ignore background clear errors
   }
 }
 
 async function triggerDryRun() {
-  if (isBusy) return;
+  if (isBusy || !currentSettings.devMode) return;
   setBusy(true);
 
   try {
@@ -345,76 +305,49 @@ async function triggerDryRun() {
     const tab = await queryActiveTab();
     const tabUrl = tab.url || '';
 
-    if (!Storage.matchesUrlPattern(tabUrl, settings.targetUrlPattern)) {
-      setStatus(
-        'URL tab aktif tidak cocok dengan pola target (' + settings.targetUrlPattern + ').',
-        'error'
-      );
+    if (!Storage.matchesUrlPattern(tabUrl, Storage.LOCKED_CONFIG.targetUrlPattern)) {
+      setFeedback('URL tab aktif tidak cocok dengan pola target.', 'error');
       return;
     }
 
-    const opId = settings.activeOperator || 'op1';
+    const opId = (pageContext && pageContext.operatorKey) || settings.activeOperator || 'op1';
     const preset = Storage.OPERATOR_PRESETS[opId] || Storage.OPERATOR_PRESETS.op1;
     const equipmentMap = (settings.operators && settings.operators[opId]) || {};
 
-    setStatus('Menjalankan Dry Run (' + preset.label + ')...', 'dry');
+    setFeedback('Menjalankan Dry Run (' + preset.label + ')...', 'dry');
     hideProgress();
 
     await injectContentScript(tab.id);
 
-    const scheduleFilter = elScheduleFilter.value || 'all';
-    const includeEveryShift = Boolean(elIncludeEveryShift.checked);
-    const autoShowAllRows = settings.devMode ? Boolean(elAutoShowAllRows.checked) : true;
+    const scheduleFilter = resolveValidShiftFilter(elScheduleFilter.value);
 
     const response = await sendTabMessage(tab.id, {
       action: 'SCR_DRY_RUN',
       payload: {
         operatorId: opId,
         scheduleFilter: scheduleFilter,
-        includeEveryShift: includeEveryShift,
-        autoShowAllRows: autoShowAllRows,
+        autoShowAllRows: true,
         equipmentMap: equipmentMap,
         skipRunningKeywords: settings.skipRunningKeywords,
         skipStandbyKeywords: settings.skipStandbyKeywords,
-        clickDelayMs: settings.clickDelayMs
+        clickDelayMs: Storage.LOCKED_CONFIG.clickDelayMs
       }
     });
 
     if (!response || !response.ok) {
-      setStatus((response && response.error) || 'Gagal memproses tabel checklist.', 'error');
+      setFeedback((response && response.error) || 'Gagal memproses tabel checklist.', 'error');
       return;
     }
-
-    updateSummaryNumbers(response);
-
-    const expandedNote = response.expandedRows
-      ? ' (tabel diperluas ke ' + response.expandedTo + ')'
-      : '';
 
     const execCount = response.setToExecuted || 0;
     const notExecCount = response.setToNotExecuted || 0;
 
-    setStatus(
-      'Dry Run (' + preset.label + '): ' + execCount + ' Executed, ' + notExecCount + ' Not Executed' + expandedNote + '.',
+    setFeedback(
+      'Dry Run (' + preset.label + '): ' + execCount + ' Executed, ' + notExecCount + ' Not Executed.',
       'dry'
     );
-
-    await Storage.appendHistory({
-      timestamp: new Date().toISOString(),
-      operatorId: opId,
-      operatorLabel: preset.label,
-      mode: 'Dry Run',
-      scheduleFilter: scheduleFilter,
-      includeEveryShift: includeEveryShift,
-      totalScanned: response.totalScanned,
-      setToExecuted: execCount,
-      setToNotExecuted: notExecCount,
-      alreadySet: response.alreadySet || 0,
-      untouchedCount: response.untouchedCount || 0,
-      remainingUnset: response.remainingUnset || 0
-    });
   } catch (err) {
-    setStatus(err && err.message ? err.message : 'Terjadi kesalahan saat Dry Run.', 'error');
+    setFeedback(err && err.message ? err.message : 'Terjadi kesalahan saat Dry Run.', 'error');
   } finally {
     hideProgress();
     setBusy(false);
@@ -437,25 +370,17 @@ async function triggerExecuteWorkflow() {
     const tab = await queryActiveTab();
     const tabUrl = tab.url || '';
 
-    if (!Storage.matchesUrlPattern(tabUrl, settings.targetUrlPattern)) {
-      setStatus(
-        'Tab aktif bukan halaman web TPM yang sesuai (' + settings.targetUrlPattern + ').',
-        'error'
-      );
+    if (!Storage.matchesUrlPattern(tabUrl, Storage.LOCKED_CONFIG.targetUrlPattern)) {
+      setFeedback('Tab aktif bukan web TPM yang sesuai.', 'error');
       setBusy(false);
       return;
     }
 
-    const opId = !settings.devMode && pageContext.operatorKey
-      ? pageContext.operatorKey
-      : (settings.activeOperator || 'op1');
+    const opId = (pageContext && pageContext.operatorKey) || settings.activeOperator || 'op1';
     const preset = Storage.OPERATOR_PRESETS[opId] || Storage.OPERATOR_PRESETS.op1;
     const equipmentMap = (settings.operators && settings.operators[opId]) || {};
-    const scheduleFilter = elScheduleFilter.value || 'all';
-    const selectedOpt = elScheduleFilter.options[elScheduleFilter.selectedIndex];
-    const scheduleLabel = selectedOpt ? selectedOpt.textContent.trim() : scheduleFilter;
-    const includeEveryShift = Boolean(elIncludeEveryShift.checked);
-    const autoShowAllRows = settings.devMode ? Boolean(elAutoShowAllRows.checked) : true;
+    const scheduleFilter = resolveValidShiftFilter(elScheduleFilter.value);
+    const scheduleLabel = SHIFT_LABELS[scheduleFilter] || 'Morning Shift';
 
     await injectContentScript(tab.id);
 
@@ -469,24 +394,23 @@ async function triggerExecuteWorkflow() {
           activeDateFormatted: pageContext.activeDateFormatted || '-',
           scheduleFilter: scheduleFilter,
           scheduleLabel: scheduleLabel,
-          includeEveryShift: includeEveryShift,
-          autoShowAllRows: autoShowAllRows,
+          autoShowAllRows: true,
           equipmentMap: equipmentMap,
           skipRunningKeywords: settings.skipRunningKeywords,
           skipStandbyKeywords: settings.skipStandbyKeywords,
-          clickDelayMs: settings.clickDelayMs,
+          clickDelayMs: Storage.LOCKED_CONFIG.clickDelayMs,
           theme: settings.theme,
           devMode: Boolean(settings.devMode)
         }
       },
       function (response) {
         if (chrome.runtime && chrome.runtime.lastError) {
-          setStatus(chrome.runtime.lastError.message, 'error');
+          setFeedback(chrome.runtime.lastError.message, 'error');
           setBusy(false);
           return;
         }
         if (!response || !response.ok) {
-          setStatus((response && response.error) || 'Gagal membuka modal checklist pada tab aktif.', 'error');
+          setFeedback((response && response.error) || 'Gagal membuka modal checklist pada tab aktif.', 'error');
           setBusy(false);
           return;
         }
@@ -496,12 +420,12 @@ async function triggerExecuteWorkflow() {
           return;
         }
 
-        setStatus('Modal konfirmasi dibuka pada halaman web TPM.', 'success');
+        setFeedback('Modal konfirmasi dibuka pada web TPM.', 'success');
         setBusy(false);
       }
     );
   } catch (err) {
-    setStatus(err && err.message ? err.message : 'Gagal terhubung ke halaman web TPM.', 'error');
+    setFeedback(err && err.message ? err.message : 'Gagal terhubung ke web TPM.', 'error');
     setBusy(false);
   }
 }
@@ -523,15 +447,13 @@ async function init() {
       if (message.action === 'SCR_WORKFLOW_COMPLETE' && message.payload) {
         if (currentSettings.devMode) {
           hideProgress();
-          updateSummaryNumbers(message.payload);
-          setStatus(
+          setFeedback(
             'Selesai (' + message.payload.operatorLabel + '): ' +
             (message.payload.setToExecuted || 0) + ' Executed, ' +
             (message.payload.setToNotExecuted || 0) + ' Not Executed.',
             'success'
           );
         }
-        Storage.appendHistory(message.payload);
       }
     });
   }
@@ -541,21 +463,12 @@ async function init() {
 
   await Promise.all([
     detectAndSyncPageContext(),
-    silentAutoPullOnPopupOpen(initial)
+    silentAutoPullOnPopupOpen()
   ]);
 
   Storage.onChanged(function (updated) {
     renderSettings(updated, false);
   });
-
-  for (const btn of elOpBtns) {
-    btn.addEventListener('click', async function () {
-      const nextOp = btn.getAttribute('data-operator');
-      const updated = await Storage.saveSettings({ activeOperator: nextOp });
-      renderSettings(updated, false);
-      clearPreviewOnActiveTab({ updateStatus: false });
-    });
-  }
 
   elThemeBtn.addEventListener('click', async function () {
     const nextTheme = currentSettings.theme === 'dark' ? 'light' : 'dark';
@@ -564,7 +477,7 @@ async function init() {
   });
 
   elOptionsBtn.addEventListener('click', async function () {
-    const opId = currentSettings.activeOperator || 'op1';
+    const opId = (pageContext && pageContext.operatorKey) || currentSettings.activeOperator || 'op1';
     await Storage.saveSettings({ activeOperator: opId });
     if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
       try {
@@ -586,37 +499,14 @@ async function init() {
   });
 
   elScheduleFilter.addEventListener('change', async function () {
-    hasManualShiftOverride = true;
-    await Storage.saveSettings({ lastFilter: elScheduleFilter.value });
-    clearPreviewOnActiveTab({ updateStatus: false });
-  });
-
-  elAutoDetectShift.addEventListener('change', async function () {
-    const enabled = elAutoDetectShift.checked;
-    if (enabled) {
-      hasManualShiftOverride = false;
-      elScheduleFilter.value = Storage.detectActiveShiftByHour();
-    }
-    await Storage.saveSettings({ autoDetectShift: enabled });
-    clearPreviewOnActiveTab({ updateStatus: false });
-  });
-
-  elIncludeEveryShift.addEventListener('change', async function () {
-    await Storage.saveSettings({ includeEveryShift: elIncludeEveryShift.checked });
-    clearPreviewOnActiveTab({ updateStatus: false });
-  });
-
-  elAutoShowAllRows.addEventListener('change', async function () {
-    await Storage.saveSettings({ autoShowAllRows: elAutoShowAllRows.checked });
+    const validShift = resolveValidShiftFilter(elScheduleFilter.value);
+    elScheduleFilter.value = validShift;
+    await Storage.saveSettings({ lastFilter: validShift });
+    clearPreviewOnActiveTab();
   });
 
   elDryRunBtn.addEventListener('click', function () {
     triggerDryRun();
-  });
-
-  elClearDryRunBtn.addEventListener('click', function () {
-    if (isBusy) return;
-    clearPreviewOnActiveTab({ updateStatus: true });
   });
 
   elExecuteBtn.addEventListener('click', function () {

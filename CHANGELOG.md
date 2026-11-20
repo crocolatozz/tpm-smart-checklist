@@ -2,6 +2,35 @@
 
 Semua perubahan penting pada **TPM Smart Checklist** dicatat dalam file ini.
 
+## [2.2.1] - 2026-11-20
+
+### Changed
+- **Pengaman PATCH Firestore `skipKeywords` (`storage.js`)**: Menambahkan parameter query `?updateMask.fieldPaths=skipKeywords` pada request `PATCH` auto-push kata kunci ke dokumen `config/tpm_settings` agar field lain pada dokumen Firestore tersebut tidak ikut tertimpa.
+- **Filter Shift Ketat & Guard Anti-All (`popup.html`, `popup.js`, `storage.js`, `content.js`)**: Membatasi dropdown `#schedule-filter` hanya ke 3 shift utama (`Morning Shift`, `Afternoon Shift`, `Night Shift`), menghapus `Semua Jadwal` dan opsi berkala dari dropdown, serta mengamankan fallback di `storage.js`, `popup.js`, dan `content.js` agar tidak pernah bernilai `'all'` atau string kosong sambil tetap mengaudit tugas berkala (`Daily`, `Weekly`, `Monthly`, `Optional`) pada pemindaian `Sisa Unset`.
+- **Popup Tanpa Tab Operator & Penyeragaman Teks "Web" (`popup.html`, `popup.js`, `styles.css`, `content.js`)**: Menghapus 3 tab operator di Popup sehingga ringkasan 3 pill (`RUNNING`, `STANDBY`, `IGNORE`) otomatis mengikuti operator yang terdeteksi dari web aktif (menampilkan `0` redup saat di luar web TPM), menyeragamkan istilah `"Halaman"` menjadi `"Web"` (termasuk `"Web Aktif"`, `"Di luar web TPM Op. 1–3"`, dan `"Web Operator"`), serta memastikan panduan `"Buka web checklist TPM Op. 1, 2, atau 3 dulu."` rapi dalam 1 baris.
+- **Tab Filter Options Equal-Width Semi-Transparan (`styles.css`)**: Mengatur 4 tombol filter (`ALL`, `RUNNING`, `STANDBY`, `IGNORE`) pada Halaman Options dengan grid 4 kolom sama lebar (`repeat(4, 1fr)`) dan teks rata tengah ber-`tabular-nums`, serta mengganti warna aktif solid menjadi fill semi-transparan dengan border tipis `1px` yang kontras di Dark Mode maupun Light Mode.
+- Pembaruan versi ekstensi ke `v2.2.1` pada `manifest.json`, `popup.html`, `options.html`, `README.md`, dan `README.txt`.
+
+### Removed
+- Menghapus opsi filter `Semua Jadwal`, `Daily`, `Weekly`, `Monthly`, `Optional` dan 3 tab manual Operator (`Operator 1–3`) dari Popup beserta referensi DOM/listener terkait.
+
+## [2.2.0] - 2026-11-20
+
+### Added
+- **Auto-Push Kata Kunci Pengecualian ke Firestore (`storage.js`, `options.js`)**: Penambahan dan penghapusan *Skip Task Keywords* di Halaman Options saat **Dev Mode** aktif kini langsung menyimpan perubahan via `PATCH` ke dokumen Firestore `config/tpm_settings` secara otomatis tanpa tombol Push manual.
+- **Auto-Refresh Real-Time Halaman Options (`options.js`)**: Listener `chrome.storage.onChanged` memastikan daftar equipment dan penghitung tab di Options otomatis ter-refresh saat Popup menarik pembaruan dari Firestore di latar belakang.
+
+### Changed
+- **Konfigurasi Terpusat Terkunci & Penghapusan `includeEveryShift` (`storage.js`, `content.js`, `popup.html`, `popup.js`)**: Mengunci permanen `projectId` (`urea1b-running-status`), `autoPullOnOpen`, `targetUrlPattern` (`*`), `clickDelayMs` (`150`), `autoDetectShift`, dan `autoShowAllRows`; mengganti opsi `Every Shift` dengan interval `Daily` dan `Monthly` sesuai web APM; serta menghapus total logika `includeEveryShift` dan `executionHistory` beserta pembersihan kunci lama dari storage.
+- **Perampingan Popup (`popup.html`, `popup.js`, `styles.css`)**: Memperbarui teks Execute Guard (`"Di luar halaman TPM Op. 1–3"` dan `"Buka halaman checklist TPM Op. 1, 2, atau 3 dulu."`), menampilkan 3 pill status uppercase (`RUNNING`, `STANDBY`, `IGNORE`) tanpa pengulangan label operator, menjalankan auto-detect shift satu kali saat dibuka tanpa checkbox, menyembunyikan tombol **Dry Run** di mode normal agar **Execute** melebar penuh, serta menghapus tombol **Clear**, 3 checkbox, dan grid 6 kotak statistik.
+- **Penyederhanaan Halaman Options & Warna Filter RSC (`options.html`, `options.js`, `styles.css`)**: Menghapus kartu **Sinkronisasi Firestore**, panel **Execution History**, 3 tombol utilitas kanan pencarian, serta modal **Bulk Paste Tag**; melebarkan input pencarian ke `100%`; menyeragamkan label tab operator & filter ke huruf kapital dengan warna aktif Running Status Checker (`ALL` `#3B82F6`, `RUNNING` `#10B981`, `STANDBY` `#F59E0B`, `IGNORE` `#64748B`); serta memberi jarak pemisah vertikal yang tegas antar grup equipment.
+- **Penyempurnaan Modal In-Page & Filter Audit Sisa Unset (`content.js`)**: Menghapus baris `Task Every Shift`, menyeragamkan format uppercase `RUNNING • STANDBY • IGNORE`, mengubah judul hasil menjadi `"Smart Checklist Selesai"`, memadatkan kotak peringatan Save, dan mengecualikan shift lain saat menghitung **Sisa Unset** (hanya menghitung shift terpilih atau tugas berkala `Daily`/`Weekly`/`Monthly`/`Optional` yang berstatus `RUNNING`/`STANDBY`, `Unset`, dan tidak cocok `skipKeywords`).
+- **Audit Ikon SVG (`icons.js`, `popup.js`, `options.js`)**: Mengganti ikon serangga (`bug`) menjadi ikon kurung kode (`</>`), memperbarui ikon swap vertikal menjadi dua panah terpisah kiri-atas dan kanan-bawah yang tajam, serta membersihkan definisi SVG yang tidak terpakai.
+- Pembaruan versi ekstensi ke `v2.2.0` pada `manifest.json`, `popup.html`, `options.html`, `README.md`, dan `README.txt`.
+
+### Removed
+- Menghapus panel manual Sinkronisasi Firestore, Riwayat Eksekusi (`executionHistory`), fitur `includeEveryShift`, tombol **Clear**, dan utilitas Bulk Paste / Scrape Tag.
+
 ## [2.1.0] - 2026-11-19
 
 ### Added

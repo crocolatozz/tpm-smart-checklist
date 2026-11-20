@@ -12,16 +12,32 @@
     morning_shift: /morning_shift|morning\s+shift/i,
     afternoon_shift: /afternoon_shift|afternoon\s+shift/i,
     night_shift: /night_shift|night\s+shift/i,
-    every_shift: /every_shift|every\s+shift/i,
+    daily: /\bdaily\b|every_shift|every\s+shift/i,
     weekly: /\bweekly\b/i,
+    monthly: /\bmonthly\b/i,
     optional: /\boptional\b/i
   };
 
-  const SHIFT_WITH_EVERY = new Set([
-    'morning_shift',
-    'afternoon_shift',
-    'night_shift'
-  ]);
+  const SHIFT_ONLY_KEYS = ['morning_shift', 'afternoon_shift', 'night_shift'];
+  const PERIODIC_KEYS = ['daily', 'weekly', 'monthly', 'optional'];
+  const SHIFT_LABELS = {
+    morning_shift: 'Morning Shift',
+    afternoon_shift: 'Afternoon Shift',
+    night_shift: 'Night Shift'
+  };
+
+  function detectShiftByHourFallback() {
+    const hour = new Date().getHours();
+    if (hour >= 7 && hour <= 14) return 'morning_shift';
+    if (hour >= 15 && hour <= 22) return 'afternoon_shift';
+    return 'night_shift';
+  }
+
+  function resolveValidShiftFilter(rawFilter) {
+    const clean = String(rawFilter || '').trim();
+    if (SHIFT_ONLY_KEYS.includes(clean)) return clean;
+    return detectShiftByHourFallback();
+  }
 
   let jumpPulseTimer = null;
   let activeModalState = null;
@@ -69,18 +85,31 @@
       .trim();
   }
 
-  function matchesSchedule(taskId, badgeText, scheduleFilter, includeEveryShift) {
-    if (!scheduleFilter || scheduleFilter === 'all') return true;
-    const regex = SHIFT_MATCHERS[scheduleFilter];
-    if (!regex) return true;
-
+  function matchesSchedule(taskId, badgeText, scheduleFilter) {
+    const validShift = resolveValidShiftFilter(scheduleFilter);
+    const regex = SHIFT_MATCHERS[validShift];
     const combined = String(taskId || '') + ' ' + String(badgeText || '');
-    if (regex.test(combined)) {
+    return regex.test(combined);
+  }
+
+  function matchesRemainingAuditScope(taskId, badgeText, scheduleFilter) {
+    const validShift = resolveValidShiftFilter(scheduleFilter);
+    const combined = String(taskId || '') + ' ' + String(badgeText || '');
+
+    for (const shiftKey of SHIFT_ONLY_KEYS) {
+      if (shiftKey !== validShift && SHIFT_MATCHERS[shiftKey].test(combined)) {
+        return false;
+      }
+    }
+
+    if (SHIFT_MATCHERS[validShift] && SHIFT_MATCHERS[validShift].test(combined)) {
       return true;
     }
 
-    if (includeEveryShift && SHIFT_WITH_EVERY.has(scheduleFilter)) {
-      return SHIFT_MATCHERS.every_shift.test(combined);
+    for (const pKey of PERIODIC_KEYS) {
+      if (SHIFT_MATCHERS[pKey].test(combined)) {
+        return true;
+      }
     }
 
     return false;
@@ -551,18 +580,28 @@
     return true;
   }
 
-  function scanRemainingActiveUnset(equipmentMap) {
+  function scanRemainingActiveUnset(equipmentMap, auditOpts) {
+    const opts = auditOpts || {};
+    const scheduleFilter = resolveValidShiftFilter(opts.scheduleFilter);
+    const runningExclusions = Array.isArray(opts.runningExclusions) ? opts.runningExclusions : [];
+    const standbyExclusions = Array.isArray(opts.standbyExclusions) ? opts.standbyExclusions : [];
+
     const rows = Array.from(document.querySelectorAll('tr[data-task-id]'));
     let remainingCount = 0;
     let firstUnsetRow = null;
 
     for (const row of rows) {
       if (!isRowVisible(row)) continue;
+      const taskId = row.getAttribute('data-task-id') || '';
       const firstCell = row.querySelector('td:nth-child(1)');
       const tag = extractEquipmentTag(firstCell);
-      const equipState = tag ? equipmentMap[tag] : null;
+      const badgeText = extractBadgeText(firstCell);
 
-      // Strictly only active operator preset units (RUNNING or STANDBY)
+      if (!matchesRemainingAuditScope(taskId, badgeText, scheduleFilter)) {
+        continue;
+      }
+
+      const equipState = tag ? equipmentMap[tag] : null;
       if (equipState !== 'RUNNING' && equipState !== 'STANDBY') {
         continue;
       }
@@ -570,11 +609,19 @@
       const checkbox = row.querySelector('input[type="checkbox"][id^="is_executed_"]');
       if (!checkbox || checkbox.disabled) continue;
 
-      if (getCheckboxState(row, checkbox) === 'UNSET') {
-        remainingCount++;
-        if (!firstUnsetRow) {
-          firstUnsetRow = row;
-        }
+      if (getCheckboxState(row, checkbox) !== 'UNSET') {
+        continue;
+      }
+
+      const taskText = extractTaskText(row);
+      const activeExclusions = equipState === 'RUNNING' ? runningExclusions : standbyExclusions;
+      if (findMatchedKeyword(taskText, activeExclusions)) {
+        continue;
+      }
+
+      remainingCount++;
+      if (!firstUnsetRow) {
+        firstUnsetRow = row;
       }
     }
 
@@ -595,8 +642,7 @@
     try {
       const cfg = options || {};
       const dryRun = Boolean(cfg.dryRun);
-      const scheduleFilter = String(cfg.scheduleFilter || 'all');
-      const includeEveryShift = Boolean(cfg.includeEveryShift);
+      const scheduleFilter = resolveValidShiftFilter(cfg.scheduleFilter);
       const autoShowAllRows = cfg.autoShowAllRows !== false;
       const autoJumpOnFinish = cfg.autoJumpOnFinish !== false;
       const equipmentMap = cfg.equipmentMap && typeof cfg.equipmentMap === 'object' ? cfg.equipmentMap : {};
@@ -628,7 +674,7 @@
         const tag = extractEquipmentTag(firstCell);
         const badgeText = extractBadgeText(firstCell);
 
-        if (!matchesSchedule(taskId, badgeText, scheduleFilter, includeEveryShift)) {
+        if (!matchesSchedule(taskId, badgeText, scheduleFilter)) {
           untouchedCount++;
           continue;
         }
@@ -697,15 +743,23 @@
 
         for (const row of rows) {
           if (plannedRowSet.has(row) || !isRowVisible(row)) continue;
+          const taskId = row.getAttribute('data-task-id') || '';
           const firstCell = row.querySelector('td:nth-child(1)');
           const tag = extractEquipmentTag(firstCell);
+          const badgeText = extractBadgeText(firstCell);
+          if (!matchesRemainingAuditScope(taskId, badgeText, scheduleFilter)) continue;
+
           const equipState = tag ? equipmentMap[tag] : null;
           if (equipState !== 'RUNNING' && equipState !== 'STANDBY') continue;
           const checkbox = row.querySelector('input[type="checkbox"][id^="is_executed_"]');
           if (!checkbox || checkbox.disabled) continue;
-          if (getCheckboxState(row, checkbox) === 'UNSET') {
-            remainingUnset++;
-          }
+          if (getCheckboxState(row, checkbox) !== 'UNSET') continue;
+
+          const taskText = extractTaskText(row);
+          const activeExclusions = equipState === 'RUNNING' ? runningExclusions : standbyExclusions;
+          if (findMatchedKeyword(taskText, activeExclusions)) continue;
+
+          remainingUnset++;
         }
       } else {
         const totalToProcess = plannedActions.length;
@@ -743,7 +797,11 @@
           }
         }
 
-        const remainingInfo = scanRemainingActiveUnset(equipmentMap);
+        const remainingInfo = scanRemainingActiveUnset(equipmentMap, {
+          scheduleFilter: scheduleFilter,
+          runningExclusions: runningExclusions,
+          standbyExclusions: standbyExclusions
+        });
         remainingUnset = remainingInfo.remainingCount;
         firstRemainingUnsetRow = remainingInfo.firstUnsetRow;
         if (autoJumpOnFinish && firstRemainingUnsetRow) {
@@ -755,7 +813,6 @@
         ok: true,
         dryRun: dryRun,
         scheduleFilter: scheduleFilter,
-        includeEveryShift: includeEveryShift,
         expandedRows: paginationInfo.expanded,
         expandedTo: paginationInfo.expandedTo,
         totalScanned: totalScanned,
@@ -992,6 +1049,8 @@
       .tpm-info-key {
         color: var(--text-muted);
         font-weight: 500;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
 
       .tpm-info-val {
@@ -1330,10 +1389,12 @@
       const titleWrap = document.createElement('div');
       const title = document.createElement('h2');
       title.className = 'tpm-title';
-      title.textContent = 'Telah dilakukan Smart Checklist';
+      title.textContent = 'Smart Checklist Selesai';
+      const validShift = resolveValidShiftFilter(payload.scheduleFilter);
+      const resolvedShiftLabel = SHIFT_LABELS[validShift] || payload.scheduleLabel || 'Morning Shift';
       const sub = document.createElement('p');
       sub.className = 'tpm-sub';
-      sub.textContent = resolvedOperatorLabel + ' · ' + resolvedDate + ' · ' + (payload.scheduleLabel || 'Semua Jadwal');
+      sub.textContent = resolvedOperatorLabel + ' · ' + resolvedDate + ' · ' + resolvedShiftLabel;
       titleWrap.appendChild(title);
       titleWrap.appendChild(sub);
       header.appendChild(iconBox);
@@ -1345,7 +1406,7 @@
       const runningChip = document.createElement('div');
       runningChip.className = 'tpm-unit-chip is-running';
       const runLbl = document.createElement('span');
-      runLbl.textContent = 'Unit Running';
+      runLbl.textContent = 'RUNNING';
       const runVal = document.createElement('span');
       runVal.className = 'tpm-chip-num';
       runVal.textContent = String(unitCounts.running);
@@ -1355,7 +1416,7 @@
       const standbyChip = document.createElement('div');
       standbyChip.className = 'tpm-unit-chip is-standby';
       const stbyLbl = document.createElement('span');
-      stbyLbl.textContent = 'Unit Standby';
+      stbyLbl.textContent = 'STANDBY';
       const stbyVal = document.createElement('span');
       stbyVal.className = 'tpm-chip-num';
       stbyVal.textContent = String(unitCounts.standby);
@@ -1365,7 +1426,7 @@
       const ignoreChip = document.createElement('div');
       ignoreChip.className = 'tpm-unit-chip is-ignore';
       const ignLbl = document.createElement('span');
-      ignLbl.textContent = 'Unit Ignore';
+      ignLbl.textContent = 'IGNORE';
       const ignVal = document.createElement('span');
       ignVal.className = 'tpm-chip-num';
       ignVal.textContent = String(unitCounts.ignore);
@@ -1381,7 +1442,7 @@
       banner.appendChild(createShadowSvg('alert-triangle', 16));
       const bannerText = document.createElement('span');
       bannerText.textContent =
-        'Operator tetap wajib menekan tombol "Save" bawaan web TPM untuk menyimpan perubahan secara permanen.';
+        'Wajib klik tombol Save bawaan web TPM setelah ini agar perubahan tersimpan permanen.';
       banner.appendChild(bannerText);
 
       const remainNote = document.createElement('p');
@@ -1395,7 +1456,7 @@
 
       if (remainingCount === 0) {
         remainNote.textContent =
-          'Seluruh task unit aktif (Running / Standby) pada tampilan saat ini sudah terisi.' + ignoreSuffix;
+          'Seluruh task aktif (RUNNING / STANDBY) pada shift terpilih & tugas berkala sudah terisi.' + ignoreSuffix;
         const doneBtn = document.createElement('button');
         doneBtn.type = 'button';
         doneBtn.className = 'tpm-btn tpm-btn-primary';
@@ -1410,7 +1471,7 @@
         modal.appendChild(actions);
       } else {
         remainNote.textContent =
-          'Masih terdapat ' + remainingCount + ' baris unit aktif (Running / Standby) yang berstatus Unset.' + ignoreSuffix;
+          'Masih terdapat ' + remainingCount + ' baris aktif (RUNNING / STANDBY) pada shift terpilih & tugas berkala yang berstatus Unset.';
 
         const closeBtn = document.createElement('button');
         closeBtn.type = 'button';
@@ -1521,8 +1582,7 @@
           operatorId: payload.operatorId || 'op1',
           operatorLabel: resolvedOperatorLabel,
           mode: 'Execute',
-          scheduleFilter: payload.scheduleFilter || 'all',
-          includeEveryShift: Boolean(payload.includeEveryShift),
+          scheduleFilter: resolveValidShiftFilter(payload.scheduleFilter),
           totalScanned: result.totalScanned,
           setToExecuted: result.setToExecuted,
           setToNotExecuted: result.setToNotExecuted,
@@ -1549,7 +1609,7 @@
       title.textContent = 'Konfirmasi Smart Checklist';
       const sub = document.createElement('p');
       sub.className = 'tpm-sub';
-      sub.textContent = 'Periksa halaman operator, tanggal aktif, dan jadwal sebelum mengisi checklist.';
+      sub.textContent = 'Periksa web operator, tanggal aktif, dan jadwal sebelum mengisi checklist.';
       titleWrap.appendChild(title);
       titleWrap.appendChild(sub);
       header.appendChild(titleWrap);
@@ -1557,15 +1617,16 @@
       const grid = document.createElement('div');
       grid.className = 'tpm-info-grid';
 
+      const validShift = resolveValidShiftFilter(payload.scheduleFilter);
+      const resolvedShiftLabel = SHIFT_LABELS[validShift] || payload.scheduleLabel || 'Morning Shift';
       const unitCounts = countConfiguredUnits(payload.equipmentMap);
       const rowsData = [
-        { k: 'Halaman Operator', v: resolvedOperatorLabel + resolvedAreaSuffix },
+        { k: 'Web Operator', v: resolvedOperatorLabel + resolvedAreaSuffix },
         { k: 'Tanggal Aktif', v: resolvedDate },
-        { k: 'Jadwal / Shift', v: payload.scheduleLabel || payload.scheduleFilter || 'Semua Jadwal' },
-        { k: 'Task Every Shift', v: payload.includeEveryShift ? 'Disertakan' : 'Tidak disertakan' },
+        { k: 'Jadwal / Shift', v: resolvedShiftLabel },
         {
           k: 'Status Unit',
-          v: unitCounts.running + ' Running · ' + unitCounts.standby + ' Standby · ' + unitCounts.ignore + ' Ignore (Dilewati)'
+          v: unitCounts.running + ' RUNNING • ' + unitCounts.standby + ' STANDBY • ' + unitCounts.ignore + ' IGNORE'
         }
       ];
 
