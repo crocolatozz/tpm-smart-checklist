@@ -2,6 +2,14 @@
 
 Semua perubahan penting pada **TPM Smart Checklist** dicatat dalam file ini.
 
+## [2.3.0] - 2026-11-20
+
+### Changed
+- **Overhaul Palet Dark Mode: Dark Forest / Emerald (`styles.css`, `content.js`)**: Mengganti seluruh latar Dark Mode dari nuansa biru tua slate/navy menjadi hitam-kehijauan pekat agar menyatu dengan web APM sambil menjaga logo hijau-emas tetap tajam (`--bg-page: #060d0a`, `--bg-surface: #0c1713`, `--bg-subtle: #13221c`, `--border-color: #1d332a`, `--text-primary: #f8fafc`, `--text-muted: #94a3b8`), termasuk pada stylesheet terisolasi Shadow DOM untuk modal Pra-Eksekusi, Progres, dan Hasil Eksekusi di `content.js`.
+- **Penyempurnaan Palet Light Mode Kontras Tinggi (`styles.css`, `content.js`)**: Mengatur Light Mode dengan latar putih bersih (`#ffffff`), permukaan kartu abu-abu kehijauan muda (`#f5f7f6`), border `#dce5e0`, serta emerald lebih gelap (`#059669` untuk tombol utama, `#047857` untuk teks dan ikon aksen) demi rasio kontras optimal.
+- **Penyeragaman Aksen Interaktif & Highlight Emerald (`styles.css`, `content.js`)**: Mengubah tombol utama (`Execute`, `Ya, Jalankan`, `Loncat ke Sisa (X)`), tab aktif `OPERATOR 1/2/3`, focus ring pencarian & dropdown shift, badge versi/DEV, ikon aksen header, serta highlight baris & pulse target pada web APM menjadi emerald (`#10b981` / `#059669`), sambil **mempertahankan 100%** warna 4 tab filter status (`ALL` biru, `RUNNING` emerald, `STANDBY` amber, `IGNORE` slate) dan badge status equipment.
+- Pembaruan versi ekstensi ke `v2.3.0` pada `manifest.json`, `popup.html`, `options.html`, `README.md`, dan `README.txt`.
+
 ## [2.2.1] - 2026-11-20
 
 ### Changed

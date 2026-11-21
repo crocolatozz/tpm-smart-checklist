@@ -451,17 +451,17 @@
 
     const isNotExec = targetState === 'NOT_EXECUTED';
     row.setAttribute('data-scr-dryrun', 'true');
-    row.style.outline = isNotExec ? '2px solid #f97316' : '2px solid #22c55e';
+    row.style.outline = isNotExec ? '2px solid #f97316' : '2px solid #10b981';
     row.style.outlineOffset = '-2px';
-    row.style.backgroundColor = isNotExec ? '#ffedd5' : '#dcfce7';
-    row.style.color = '#0f172a';
+    row.style.backgroundColor = isNotExec ? '#ffedd5' : '#d1fae5';
+    row.style.color = '#060d0a';
 
     const textEls = row.querySelectorAll('.fw-bold, .small.text-muted, td');
     for (const el of textEls) {
       if (!Object.prototype.hasOwnProperty.call(el.dataset, 'scrPrevColor')) {
         el.dataset.scrPrevColor = el.style.color || '';
       }
-      el.style.color = el.classList.contains('text-muted') ? '#334155' : '#0f172a';
+      el.style.color = el.classList.contains('text-muted') ? '#334155' : '#060d0a';
     }
 
     const taskCell = row.querySelector('td.task-column') || row.querySelector('td:nth-child(1)');
@@ -476,9 +476,9 @@
       badge.style.fontSize = '10.5px';
       badge.style.fontWeight = '700';
       badge.style.letterSpacing = '0.02em';
-      badge.style.backgroundColor = isNotExec ? '#fed7aa' : '#bbf7d0';
-      badge.style.color = isNotExec ? '#9a3412' : '#166534';
-      badge.style.border = isNotExec ? '1px solid #fb923c' : '1px solid #4ade80';
+      badge.style.backgroundColor = isNotExec ? '#fed7aa' : '#a7f3d0';
+      badge.style.color = isNotExec ? '#9a3412' : '#065f46';
+      badge.style.border = isNotExec ? '1px solid #fb923c' : '1px solid #10b981';
       taskCell.appendChild(badge);
     }
   }
@@ -492,7 +492,7 @@
     row.dataset.scrJumpPrevBg = row.style.backgroundColor || '';
     row.setAttribute('data-scr-jump', 'true');
 
-    row.style.outline = '2px solid #f59e0b';
+    row.style.outline = '2px solid #10b981';
     row.style.outlineOffset = '-2px';
 
     if (typeof row.scrollIntoView === 'function') {
@@ -503,9 +503,9 @@
       try {
         row.animate(
           [
-            { backgroundColor: 'rgba(245, 158, 11, 0.28)', outlineColor: '#f59e0b' },
-            { backgroundColor: 'rgba(245, 158, 11, 0.06)', outlineColor: '#fbbf24' },
-            { backgroundColor: 'rgba(245, 158, 11, 0.28)', outlineColor: '#f59e0b' }
+            { backgroundColor: 'rgba(16, 185, 129, 0.28)', outlineColor: '#10b981' },
+            { backgroundColor: 'rgba(16, 185, 129, 0.06)', outlineColor: '#34d399' },
+            { backgroundColor: 'rgba(16, 185, 129, 0.28)', outlineColor: '#10b981' }
           ],
           { duration: 850, iterations: 3 }
         );
@@ -919,17 +919,18 @@
 
       .tpm-backdrop {
         --bg-card: #ffffff;
-        --bg-subtle: #f8fafc;
-        --bg-inset: #eef2f5;
-        --border-color: #dce3ea;
-        --border-strong: #c3cdd8;
+        --bg-subtle: #f5f7f6;
+        --bg-inset: #e9efec;
+        --border-color: #dce5e0;
+        --border-strong: #c4d3cb;
         --text-primary: #0f172a;
         --text-secondary: #475569;
         --text-muted: #64748b;
-        --accent: #10B981;
+        --accent: #059669;
         --accent-btn: #059669;
         --accent-hover: #047857;
-        --accent-soft: #D1FAE5;
+        --accent-btn-text: #ffffff;
+        --accent-soft: rgba(5, 150, 105, 0.12);
         --green: #059669;
         --green-soft: rgba(16, 185, 129, 0.14);
         --amber: #b45309;
@@ -939,7 +940,7 @@
 
         position: fixed;
         inset: 0;
-        background: rgba(15, 23, 42, 0.6);
+        background: rgba(6, 13, 10, 0.56);
         backdrop-filter: blur(2px);
         display: flex;
         align-items: center;
@@ -948,24 +949,27 @@
       }
 
       .tpm-backdrop[data-theme="dark"] {
-        --bg-card: #111824;
-        --bg-subtle: #162030;
-        --bg-inset: #0d141f;
-        --border-color: rgba(255, 255, 255, 0.12);
-        --border-strong: rgba(255, 255, 255, 0.2);
-        --text-primary: #f1f5f9;
+        --bg-card: #0c1713;
+        --bg-subtle: #13221c;
+        --bg-inset: #060d0a;
+        --border-color: #1d332a;
+        --border-strong: rgba(16, 185, 129, 0.28);
+        --text-primary: #f8fafc;
         --text-secondary: #cbd5e1;
         --text-muted: #94a3b8;
-        --accent: #10B981;
-        --accent-btn: #059669;
-        --accent-hover: #047857;
+        --accent: #10b981;
+        --accent-btn: #10b981;
+        --accent-hover: #059669;
+        --accent-btn-text: #022c22;
         --accent-soft: rgba(16, 185, 129, 0.16);
-        --green: #10B981;
+        --green: #10b981;
         --green-soft: rgba(16, 185, 129, 0.18);
         --amber: #fbbf24;
         --amber-bg: rgba(245, 158, 11, 0.14);
         --amber-border: rgba(245, 158, 11, 0.45);
         --amber-soft: rgba(245, 158, 11, 0.18);
+
+        background: rgba(6, 13, 10, 0.72);
       }
 
       .tpm-modal {
@@ -1199,12 +1203,13 @@
       .tpm-btn-primary {
         background: var(--accent-btn);
         border-color: var(--accent-btn);
-        color: #ffffff;
+        color: var(--accent-btn-text);
       }
 
       .tpm-btn-primary:hover {
         background: var(--accent-hover);
         border-color: var(--accent-hover);
+        color: var(--accent-btn-text);
       }
 
       .tpm-spinner {

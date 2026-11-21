@@ -10,7 +10,7 @@ Universal live-preview simulator untuk merancang dan men-debug Chrome/Edge Exten
     ├── AI_RULES.md         # Standar koding, CSP Manifest V3, dan aturan hemat token AI
     ├── CHANGELOG.md           # Catatan riwayat perubahan ekstensi
     ├── README.md              # Dokumentasi utama repository
-    └── tpm-smart-checklist/   # Folder inti ekstensi TPM Smart Checklist (v2.2.1, siap Load Unpacked ke Chrome)
+    └── tpm-smart-checklist/   # Folder inti ekstensi TPM Smart Checklist (v2.3.0, siap Load Unpacked ke Chrome)
 
 ## Alur Kerja Multi-Project (1 Repo, Beda Branch)
 
